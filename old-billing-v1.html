@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dukaan Bill</title>
+<link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#ffffff;--surface:#faf7f3;--ink:#1f1b16;--mute:#6f675e;--line:#e8e2da;--or:#e8590c;--orink:#ffffff;--tint:#fff1e6;--ok:#1b7f45;--bad:#c0392b;--okbg:#e6f4ea;--badbg:#fdecea;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#16120f;--surface:#211b16;--ink:#f5efe8;--mute:#b3a89b;--line:#3a312a;--or:#ff7a2e;--orink:#1a0f06;--tint:#33200f;--ok:#5fd18a;--bad:#ff8b7d;--okbg:#14301f;--badbg:#3a1a17;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#16120f;--surface:#211b16;--ink:#f5efe8;--mute:#b3a89b;--line:#3a312a;--or:#ff7a2e;--orink:#1a0f06;--tint:#33200f;--ok:#5fd18a;--bad:#ff8b7d;--okbg:#14301f;--badbg:#3a1a17;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:500 16px/1.4 Hind,system-ui,sans-serif;padding-bottom:92px}
+main{max-width:560px;margin:0 auto;padding:16px}
+.shop{font-size:15px;font-weight:600;color:var(--mute)}
+h1{font-size:26px;margin:2px 0 12px;font-weight:700}
+h2{font-size:20px;margin:0 0 2px}
+label{display:block;font-size:14px;color:var(--mute);margin:12px 0 4px}
+input,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:12px;padding:12px;min-height:48px}
+input:focus,textarea:focus,button:focus-visible,a:focus-visible{outline:2px solid var(--or);outline-offset:1px}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:10px}
+.calc{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:8px;align-items:center}
+.amt{font-weight:700;text-align:right;margin-top:4px}
+.x{background:none;border:0;color:var(--mute);font-size:24px;min-height:44px;min-width:36px}
+.btn{display:block;width:100%;min-height:50px;margin-top:8px;border:0;border-radius:12px;background:var(--or);color:var(--orink);font:700 17px Hind,system-ui,sans-serif;padding:12px;text-align:center;text-decoration:none}
+.btn.alt{background:var(--tint);color:var(--or)}
+.btn.ghost{background:none;border:1.5px solid var(--line);color:var(--ink)}
+.tot{border:1.5px solid var(--or);border-radius:16px;padding:14px;margin:6px 0 12px}
+.tot .big{display:flex;justify-content:space-between;align-items:baseline}
+.tot .big b{font-size:30px}
+.li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.mute,small{color:var(--mute);font-size:14px}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+.card{display:flex;justify-content:space-between;gap:12px;width:100%;text-align:left;font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+.card.col{flex-direction:column}
+.card .top{display:flex;justify-content:space-between}
+.card .r{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.b{font-size:13px;font-weight:700;padding:2px 10px;border-radius:99px}
+.b.paid{background:var(--okbg);color:var(--ok)}.b.due{background:var(--badbg);color:var(--bad)}
+.out{font-size:44px;font-weight:700;color:var(--or);line-height:1.1}
+.empty{color:var(--mute);padding:20px 4px}
+nav{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--bg);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));z-index:10}
+nav button{background:none;border:0;min-height:50px;font:600 14px Hind,system-ui,sans-serif;color:var(--mute);border-radius:10px}
+nav button.on{color:var(--or);background:var(--tint)}
+section{display:none}section.on{display:block}
+#sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:20}
+#sheet.open{display:flex}
+#panel{background:var(--bg);width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));max-height:88vh;overflow:auto}
+#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-weight:600;display:none;z-index:30;max-width:90%;text-align:center}
+@media print{main,nav,.noprint,#toast{display:none!important}#sheet{position:static;background:#fff;display:block}#panel{max-height:none;color:#000;background:#fff}}
+</style>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#e8590c"><link rel="icon" href="icon-192.png"></head>
+<body>
+<main>
+<div class="shop" id="shop"></div>
+
+<section id="v-new" class="on">
+<h1>New bill</h1>
+<label for="cust">Customer</label>
+<input id="cust" list="custs" placeholder="Name (leave empty for walk-in)" autocomplete="off">
+<label for="phone">Phone (optional)</label>
+<input id="phone" type="tel" inputmode="numeric" placeholder="10-digit mobile number">
+<label>Items</label>
+<div id="rows"></div>
+<button class="btn alt" id="add" type="button">+ Add item</button>
+<div class="tot">
+<div class="big"><span class="mute">Total</span><b id="tot">₹0</b></div>
+<label for="paid">Paid now (₹)</label>
+<input id="paid" inputmode="decimal" placeholder="0">
+<button class="btn ghost" id="full" type="button">Paid in full</button>
+<div class="li" style="border:0;margin-top:6px"><span>Balance (udhaar)</span><b id="bal" class="ok">₹0</b></div>
+</div>
+<button class="btn" id="save" type="button">Save bill</button>
+</section>
+
+<section id="v-bills">
+<h1>Bills</h1>
+<input id="q" placeholder="Search by customer or bill number">
+<div id="blist" style="margin-top:12px"></div>
+</section>
+
+<section id="v-udhaar">
+<h1>Udhaar</h1>
+<div class="mute">Total money to collect</div>
+<div class="out" id="out">₹0</div>
+<div id="ulist" style="margin-top:14px"></div>
+</section>
+
+<section id="v-backup">
+<h1>Backup</h1>
+<label for="shopin">Shop name on bills</label>
+<input id="shopin" placeholder="Your shop name">
+<label for="bk">All your bills as text</label>
+<textarea id="bk" rows="7"></textarea>
+<button class="btn" id="copy" type="button">Copy backup</button>
+<button class="btn ghost" id="restore" type="button">Restore from the text above</button>
+<p class="mute">Bills are saved on this phone only. Copy a backup now and then, and keep it in WhatsApp or Notes. To move to a new phone, paste it in the box and tap Restore.</p>
+</section>
+</main>
+
+<datalist id="custs"></datalist>
+<datalist id="items"></datalist>
+<nav id="nav">
+<button data-v="new" class="on">New bill</button>
+<button data-v="bills">Bills</button>
+<button data-v="udhaar">Udhaar</button>
+<button data-v="backup">Backup</button>
+</nav>
+<div id="sheet"><div id="panel"></div></div>
+<div id="toast"></div>
+
+<script>
+const K='dukaanbill.v1';
+function load(){try{const s=localStorage.getItem(K);if(s)return JSON.parse(s)}catch(e){}return{shop:'My Shop',next:1,bills:[]}}
+let db=load();
+function save(){try{localStorage.setItem(K,JSON.stringify(db))}catch(e){}}
+const $=i=>document.getElementById(i);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const inr=n=>'₹'+(Math.round(n*100)/100).toLocaleString('en-IN');
+const num=v=>parseFloat(v)||0;
+const due=b=>Math.max(b.total-b.paid,0);
+const sum=a=>a.reduce((s,b)=>s+due(b),0);
+const dt=t=>new Date(t).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+let rows=[{n:'',q:'',r:''}],tt;
+
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',2600)}
+function sheet(h){$('panel').innerHTML=h;$('sheet').classList.add('open')}
+function closeSheet(){$('sheet').classList.remove('open')}
+$('sheet').addEventListener('click',e=>{if(e.target.id==='sheet'||e.target.hasAttribute('data-close'))closeSheet()});
+
+function show(v){
+ ['new','bills','udhaar','backup'].forEach(x=>$('v-'+x).classList.toggle('on',x===v));
+ document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+ if(v==='backup'){$('bk').value=JSON.stringify(db);$('shopin').value=db.shop}
+ window.scrollTo(0,0);
+}
+$('nav').addEventListener('click',e=>{if(e.target.dataset.v)show(e.target.dataset.v)});
+
+function lastRate(n){n=n.trim().toLowerCase();if(!n)return'';for(const b of db.bills){const i=b.items.find(x=>x.n.toLowerCase()===n);if(i)return String(i.r)}return''}
+function renderRows(){
+ $('rows').innerHTML=rows.map((x,i)=>`<div class="row"><input list="items" data-i="${i}" data-f="n" value="${esc(x.n)}" placeholder="Item (cement, sand, bricks…)" aria-label="Item" autocomplete="off"><div class="calc"><input data-i="${i}" data-f="q" value="${esc(x.q)}" inputmode="decimal" placeholder="Qty" aria-label="Quantity"><input data-i="${i}" data-f="r" value="${esc(x.r)}" inputmode="decimal" placeholder="Rate ₹" aria-label="Rate"><button class="x" type="button" data-rm="${i}" aria-label="Remove item">×</button></div><div class="amt" id="a${i}">${inr(num(x.q)*num(x.r))}</div></div>`).join('');
+}
+function total(){return rows.reduce((s,x)=>s+num(x.q)*num(x.r),0)}
+function totals(){const t=total(),p=Math.min(num($('paid').value),t),b=t-p;$('tot').textContent=inr(t);$('bal').textContent=inr(b);$('bal').className=b>0?'bad':'ok'}
+$('rows').addEventListener('input',e=>{
+ const t=e.target,i=t.dataset.i;if(i==null)return;
+ rows[i][t.dataset.f]=t.value;
+ if(t.dataset.f==='n'&&!rows[i].r){const p=lastRate(t.value);if(p){rows[i].r=p;t.closest('.row').querySelector('[data-f="r"]').value=p}}
+ $('a'+i).textContent=inr(num(rows[i].q)*num(rows[i].r));totals();
+});
+$('rows').addEventListener('click',e=>{
+ const i=e.target.dataset.rm;if(i==null)return;
+ rows.splice(i,1);if(!rows.length)rows.push({n:'',q:'',r:''});renderRows();totals();
+});
+$('add').onclick=()=>{rows.push({n:'',q:'',r:''});renderRows();const l=$('rows').querySelectorAll('[data-f="n"]');l[l.length-1].focus()};
+$('paid').addEventListener('input',totals);
+$('full').onclick=()=>{$('paid').value=total()||'';totals()};
+$('cust').addEventListener('change',()=>{const b=db.bills.find(x=>x.cust===$('cust').value.trim()&&x.phone);if(b&&!$('phone').value)$('phone').value=b.phone});
+
+function resetForm(){rows=[{n:'',q:'',r:''}];renderRows();$('cust').value='';$('phone').value='';$('paid').value='';totals()}
+$('save').onclick=()=>{
+ const items=rows.filter(x=>x.n.trim()&&num(x.q)*num(x.r)>0).map(x=>({n:x.n.trim(),q:num(x.q),r:num(x.r)}));
+ if(!items.length)return toast('Add at least one item with quantity and rate');
+ const t=items.reduce((s,x)=>s+x.q*x.r,0),p=Math.min(num($('paid').value),t),c=$('cust').value.trim();
+ if(t-p>0&&!c)return toast('Enter the customer name for udhaar');
+ const b={no:db.next++,t:Date.now(),cust:c||'Walk-in',phone:$('phone').value.replace(/\D/g,''),items,total:t,paid:p};
+ db.bills.unshift(b);save();resetForm();refresh();toast('Bill '+b.no+' saved');openBill(b.no);
+};
+
+function lists(){
+ const c=[...new Set(db.bills.map(b=>b.cust))].filter(x=>x!=='Walk-in');
+ const it=[...new Set(db.bills.flatMap(b=>b.items.map(i=>i.n)))];
+ $('custs').innerHTML=c.map(x=>`<option value="${esc(x)}">`).join('');
+ $('items').innerHTML=it.map(x=>`<option value="${esc(x)}">`).join('');
+}
+function renderBills(){
+ const q=$('q').value.trim().toLowerCase();
+ const l=db.bills.filter(b=>!q||b.cust.toLowerCase().includes(q)||String(b.no)===q);
+ $('blist').innerHTML=l.length?l.map(b=>`<button class="card" type="button" data-b="${b.no}"><div><b>${esc(b.cust)}</b><div class="mute">Bill ${b.no}, ${dt(b.t)}</div></div><div class="r"><b>${inr(b.total)}</b>${due(b)>0?`<span class="b due">${inr(due(b))} due</span>`:'<span class="b paid">Paid</span>'}</div></button>`).join(''):`<p class="empty">${db.bills.length?'No bill matches this search.':'No bills yet. Make your first bill in the New bill tab.'}</p>`;
+}
+$('q').addEventListener('input',renderBills);
+$('blist').addEventListener('click',e=>{const c=e.target.closest('[data-b]');if(c)openBill(+c.dataset.b)});
+
+function renderUdhaar(){
+ const m={};db.bills.forEach(b=>{if(due(b)>0)(m[b.cust]=m[b.cust]||[]).push(b)});
+ const names=Object.keys(m).sort((a,b)=>sum(m[b])-sum(m[a]));
+ $('out').textContent=inr(names.reduce((s,n)=>s+sum(m[n]),0));
+ $('ulist').innerHTML=names.length?names.map(n=>`<div class="card col"><div class="top"><b>${esc(n)}</b><b class="bad">${inr(sum(m[n]))}</b></div><div class="mute">${m[n].length} unpaid bill${m[n].length>1?'s':''}, oldest from ${dt(m[n][m[n].length-1].t)}</div><button class="btn alt" type="button" data-pay="${esc(n)}">Receive payment</button></div>`).join(''):'<p class="empty">Nobody owes you anything right now.</p>';
+}
+$('ulist').addEventListener('click',e=>{const n=e.target.dataset.pay;if(n!=null)payFlow(n,()=>db.bills.filter(b=>b.cust===n&&due(b)>0).reverse())});
+
+function payFlow(title,get){
+ const d=sum(get());
+ sheet(`<h2>${esc(title)}</h2><p class="mute">Total due ${inr(d)}</p><label for="pa">Amount received (₹)</label><input id="pa" inputmode="decimal" value="${d}"><button class="btn" id="pgo" type="button">Save payment</button><button class="btn ghost" type="button" data-close>Cancel</button>`);
+ $('pgo').onclick=()=>{
+  let a=Math.min(num($('pa').value),d);if(a<=0)return toast('Enter the amount received');
+  const got=a;get().forEach(b=>{const x=Math.min(due(b),a);b.paid+=x;a-=x});
+  save();closeSheet();refresh();toast(inr(got)+' received');
+ };
+}
+
+function openBill(no){
+ const b=db.bills.find(x=>x.no===no);if(!b)return;
+ const txt=[db.shop,'Bill '+b.no+', '+dt(b.t),b.cust,'',...b.items.map(i=>i.n+': '+i.q+' × '+i.r+' = '+inr(i.q*i.r)),'','Total: '+inr(b.total),'Paid: '+inr(b.paid),due(b)>0?'Due: '+inr(due(b)):'Paid in full'].join('\n');
+ const ph=b.phone?(b.phone.length===10?'91'+b.phone:b.phone):'';
+ sheet(`<h2>${esc(db.shop)}</h2><div class="mute">Bill ${b.no}, ${dt(b.t)}</div><p><b>${esc(b.cust)}</b>${b.phone?', '+esc(b.phone):''}</p>${b.items.map(i=>`<div class="li"><span>${esc(i.n)}<br><small>${i.q} × ${inr(i.r)}</small></span><b>${inr(i.q*i.r)}</b></div>`).join('')}<div class="li"><span>Total</span><b>${inr(b.total)}</b></div><div class="li"><span>Paid</span><b>${inr(b.paid)}</b></div><div class="li"><span>Due</span><b class="${due(b)>0?'bad':'ok'}">${inr(due(b))}</b></div><div class="noprint">${due(b)>0?'<button class="btn" id="rp" type="button">Receive payment</button>':''}<a class="btn alt" target="_blank" rel="noopener" href="https://wa.me/${ph}?text=${encodeURIComponent(txt)}">Share on WhatsApp</a><button class="btn alt" id="pr" type="button">Print</button><button class="btn ghost" id="dl" type="button">Delete bill</button><button class="btn ghost" type="button" data-close>Close</button></div>`);
+ if($('rp'))$('rp').onclick=()=>payFlow('Bill '+b.no+', '+b.cust,()=>db.bills.filter(x=>x.no===no&&due(x)>0));
+ $('pr').onclick=()=>{try{window.print()}catch(e){toast('Printing is not available here')}};
+ let armed=false;
+ $('dl').onclick=e=>{if(!armed){armed=true;e.target.textContent='Tap again to delete';return}db.bills=db.bills.filter(x=>x.no!==no);save();closeSheet();refresh();toast('Bill deleted')};
+}
+
+$('shopin').addEventListener('change',()=>{db.shop=$('shopin').value.trim()||'My Shop';save();$('shop').textContent=db.shop});
+$('copy').onclick=async()=>{
+ $('bk').value=JSON.stringify(db);
+ try{await navigator.clipboard.writeText($('bk').value);toast('Backup copied. Paste it in WhatsApp or Notes.')}
+ catch(e){$('bk').select();try{document.execCommand('copy')}catch(x){}toast('Copy the text in the box')}
+};
+let armed2=false;
+$('restore').onclick=e=>{
+ try{
+  const d=JSON.parse($('bk').value);if(!d||!Array.isArray(d.bills))throw 0;
+  if(!armed2){armed2=true;e.target.textContent='Tap again to replace all data';return}
+  db=d;db.shop=db.shop||'My Shop';db.next=db.next||db.bills.length+1;save();armed2=false;e.target.textContent='Restore from the text above';refresh();$('shop').textContent=db.shop;toast('Backup restored');
+ }catch(x){toast('This is not a valid backup')}
+};
+
+function refresh(){renderBills();renderUdhaar();lists()}
+$('shop').textContent=db.shop;renderRows();totals();refresh();
+</script>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(function(){});</script></body>
+</html>
