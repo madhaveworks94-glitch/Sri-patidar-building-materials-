@@ -1,0 +1,33 @@
+import {db,save,dateFmt} from './store.js';
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let root,msg='',pending=null;
+const $=s=>root.querySelector(s);
+const native=()=>{const c=window.Capacitor;return c&&c.isNativePlatform&&c.isNativePlatform()?c.Plugins:null};
+
+async function exportFile(){
+ const name=`dukaan-os-backup-${new Date().toISOString().slice(0,10)}.json`,data=JSON.stringify(db),P=native();
+ if(P&&P.Filesystem&&P.Share){
+  const r=await P.Filesystem.writeFile({path:name,data,directory:'CACHE',encoding:'utf8'});
+  await P.Share.share({title:'Dukaan OS backup',url:r.uri,dialogTitle:'Save or send your backup'});
+ }else{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}
+ db.lastBackup=Date.now();save();
+}
+const f=(id,l,v,ph)=>`<label>${l}</label><input id="${id}" value="${esc(v||'')}" placeholder="${ph||''}">`;
+function render(){
+ root.innerHTML=`<div class="bl"><h1>Backup</h1>
+ <div class="card"><h3>Saved on this phone</h3><div class="bl-l"><span>Bills</span><b>${db.bills.length}</b></div><div class="bl-l"><span>Customers</span><b>${db.customers.length}</b></div><div class="bl-l"><span>Inventory items</span><b>${db.products.length}</b></div><div class="bl-l"><span>Last backup</span><b>${db.lastBackup?dateFmt(db.lastBackup):'Never'}</b></div>
+ <p class="mute">All your data stays on this phone. Nothing is sent to a server. If the app is uninstalled or its data is cleared, the data is gone, so back up regularly and keep the file in WhatsApp, Drive, or Files.</p>
+ <button class="btn dark" id="b-exp" type="button">Back up now</button></div>
+ <div class="card" style="margin-top:12px"><h3>Restore from a backup file</h3>${pending?`<p>Replace everything on this phone with this backup (${pending.bills.length} bills, ${pending.products.length} items)?</p><button class="btn dark" id="b-yes" type="button">Yes, restore</button><button class="btn ghost" id="b-no" type="button">Cancel</button>`:`<input id="b-file" type="file" accept=".json,application/json">`}</div>
+ <div class="card" style="margin-top:12px"><h3>Shop details</h3>${f('s-n','Shop name',db.shop.name)}${f('s-o','Owner name',db.shop.owner)}${f('s-g','Shop GSTIN',db.shop.gstin,'15-character GSTIN')}</div>
+ <div class="bl-msg" id="b-msg" style="${msg.startsWith('Backup')?'color:var(--ok)':''}">${esc(msg)}</div></div>`;
+ root.oninput=e=>{const t=e.target;if(t.id==='s-n')db.shop.name=t.value.trim()||'My Shop';else if(t.id==='s-o')db.shop.owner=t.value.trim()||'Owner';else if(t.id==='s-g')db.shop.gstin=t.value.trim().toUpperCase();else return;save()};
+ root.onclick=async e=>{const t=e.target;
+  if(t.id==='b-exp'){try{await exportFile();msg='Backup created.'}catch(err){msg='Backup was not saved.'}render()}
+  else if(t.id==='b-no'){pending=null;render()}
+  else if(t.id==='b-yes'){localStorage.setItem('dukaanos.v1',JSON.stringify(pending));pending=null;location.hash='#/overview';location.reload()}};
+ root.onchange=e=>{if(e.target.id!=='b-file'||!e.target.files[0])return;const fr=new FileReader();
+  fr.onload=()=>{try{const d=JSON.parse(fr.result);if(!d||!Array.isArray(d.bills)||!Array.isArray(d.products))throw 0;pending=d;msg=''}catch(x){msg='This is not a valid Dukaan OS backup file.'}render()};fr.readAsText(e.target.files[0])};
+}
+export function mountBackup(r){root=r;msg='';pending=null;render()}
