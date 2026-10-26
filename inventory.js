@@ -1,4 +1,5 @@
 import {db,save,uid,inr,dateFmt} from './store.js';
+import {mountImport} from './pdfimport.js';
 const num=v=>parseFloat(v)||0,fmt=n=>String(Math.round(n*100)/100);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let root,sel=null,edit=null,q='',flt='all',msg='';
@@ -16,10 +17,10 @@ function list(){
  root.innerHTML=`<div class="bl"><h1>Inventory</h1><div class="card hero"><h3>Stock value at selling rate</h3><div class="num">${inr(val)}</div><span class="pill">${db.products.length} items</span> <span class="pill">${nl} low</span></div>
  <div class="seg"><button data-f="all" class="${flt==='all'?'on':''}">All items</button><button data-f="low" class="${flt==='low'?'on':''}">Low stock</button></div>
  <input id="in-q" value="${esc(q)}" placeholder="Search item"><div style="margin-top:12px">${items.length?items.map(p=>`<button class="card kh" data-p="${p.id}"><span><b>${esc(p.name)}</b><br><small class="mute">${show(p)}</small></span><span style="text-align:right">${low(p)?'<b class="bad">Low</b><br>':''}<small class="mute">${inr(p.rate)} / ${esc(p.baseUnit)}</small></span></button>`).join(''):'<p class="mute">No items here yet.</p>'}</div>
- <button class="btn dark" id="in-new" type="button">+ Add item</button></div>`;
+ <button class="btn ghost" id="in-pdf" type="button">Import supplier invoice (PDF)</button><button class="btn dark" id="in-new" type="button">+ Add item</button></div>`;
  $('#in-q').oninput=e=>{q=e.target.value;const p=e.target.selectionStart;list();const i=$('#in-q');i.focus();i.setSelectionRange(p,p)};
  root.onclick=e=>{const t=e.target,p=t.closest('[data-p]');
-  if(t.dataset.f){flt=t.dataset.f;list()}else if(p){sel=p.dataset.p;msg='';render()}else if(t.id==='in-new'){edit='new';render()}};
+  if(t.dataset.f){flt=t.dataset.f;list()}else if(p){sel=p.dataset.p;msg='';render()}else if(t.id==='in-new'){edit='new';render()}else if(t.id==='in-pdf')mountImport(root,list)};
 }
 
 function form(){
