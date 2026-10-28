@@ -44,3 +44,7 @@ td{padding:12px;border-top:1px solid var(--line);font-size:14px}
  nav a svg{display:none}
  nav a.on{background:var(--ink);color:#fff}
 }
+
+*{-webkit-tap-highlight-color:transparent}
+button,a,.btn,nav a{transition:transform .12s ease,opacity .12s ease}
+button:active,a.btn:active,nav a:active,.card.kh:active{transform:scale(.96);opacity:.88}
