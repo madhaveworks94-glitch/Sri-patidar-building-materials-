@@ -41,6 +41,17 @@ xml = '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="htt
 for n in ('ic_launcher', 'ic_launcher_round'):
     open(f'{RES}/mipmap-anydpi-v26/{n}.xml', 'w').write(xml)
 
+
+# Replace the default splash screen (the blue X) with an orange screen and the receipt logo
+for f in glob.glob(RES + '/drawable*/splash.png'):
+    w, h = Image.open(f).size
+    im = Image.new('RGBA', (w, h), OR)
+    sq = min(w, h)
+    tmp = Image.new('RGBA', (sq, sq), (0, 0, 0, 0))
+    glyph(ImageDraw.Draw(tmp), sq, 0.34)
+    im.alpha_composite(tmp, ((w - sq) // 2, (h - sq) // 2))
+    im.save(f)
+
 # Lock the app's text size so it ignores the phone's font scaling
 for f in glob.glob('android/app/src/main/java/**/MainActivity.java', recursive=True):
     pkg = next(l.strip() for l in open(f) if l.startswith('package '))
