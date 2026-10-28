@@ -43,6 +43,7 @@ function render(){
  <div class="card" style="margin-top:12px"><h3>Top customers</h3>${bars(d.custs,d.custs[0]?d.custs[0][1]:1)}</div>
  <div class="card" style="margin-top:12px"><h3>How old is the udhaar</h3><div class="bl-l"><span>Up to 30 days</span><b>${inr(d.age[0])}</b></div><div class="bl-l"><span>31 to 60 days</span><b>${inr(d.age[1])}</b></div><div class="bl-l"><span>Over 60 days</span><b class="${d.age[2]?'bad':''}">${inr(d.age[2])}</b></div></div>
  <div class="card" style="margin-top:12px"><h3>Delivery vehicles, net</h3><div class="num ${d.fleet<0?'bad':''}">${inr(d.fleet)}</div></div>
+ <a class="btn ghost" href="#/gst" style="margin-top:12px">GST report for filing</a>
  <a class="btn dark" style="margin-top:12px" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(txt)}">Send report on WhatsApp</a></div>`;
  root.onclick=e=>{const p=e.target.dataset.p;if(p){per=p;render()}};
 }
