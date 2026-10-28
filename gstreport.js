@@ -1,5 +1,6 @@
 import {db} from './store.js';
 import {STATES} from './invoice.js';
+import {makePdf} from './gstpdf.js';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const f2=n=>Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const sn=c=>{const s=STATES.find(x=>x[0]===c);return s?s[1]+' ('+c+')':c||''};
@@ -29,6 +30,11 @@ export function csvInvoices(d){
 export function csvHsn(d){
  return csv(['HSN','Description','UQC','Total Quantity','Total Value','Taxable Value','Rate','Integrated Tax','Central Tax','State/UT Tax','Cess'],d.hs.map(x=>[x.hsn,x.name,x.uqc,x.qty,(x.tx+x.cgst+x.sgst+x.igst).toFixed(2),x.tx.toFixed(2),x.rate,x.igst.toFixed(2),x.cgst.toFixed(2),x.sgst.toFixed(2),'0.00']));
 }
+async function savePdf(p){
+ const c=window.Capacitor,P=c&&c.isNativePlatform&&c.isNativePlatform()?c.Plugins:null;
+ if(P&&P.Filesystem&&P.Share){const r=await P.Filesystem.writeFile({path:p.name,data:p.b64,directory:'CACHE'});await P.Share.share({title:p.name,url:r.uri,dialogTitle:'Save or send this report'})}
+ else p.doc.save(p.name);
+}
 async function saveFile(name,text){
  const c=window.Capacitor,P=c&&c.isNativePlatform&&c.isNativePlatform()?c.Plugins:null;
  if(P&&P.Filesystem&&P.Share){const r=await P.Filesystem.writeFile({path:name,data:text,directory:'CACHE',encoding:'utf8'});await P.Share.share({title:name,url:r.uri,dialogTitle:'Save or send this file'})}
@@ -48,13 +54,16 @@ function render(){
  <div class="card"><h3>CGST + SGST</h3><div class="num" style="font-size:20px">₹${f2(cg)} + ₹${f2(sg)}</div></div><div class="card"><h3>IGST</h3><div class="num" style="font-size:20px">₹${f2(ig)}</div></div></div>
  <div class="card" style="margin-top:12px"><div class="bl-l"><span>Business customers (B2B)</span><b>${b2b.length} invoices, ₹${f2(sum(b2b,x=>x.b.total))}</b></div><div class="bl-l"><span>Other customers (B2C)</span><b>${b2c.length} invoices, ₹${f2(sum(b2c,x=>x.b.total))}</b></div><p class="mute" style="margin:6px 0 0">${d.kach.length} kachha bills (₹${f2(sum(d.kach,b=>b.total))}) are not included because they are not tax invoices.</p></div>
  ${warn.length?`<div class="card" style="margin-top:12px"><b class="bad">Check before filing</b>${warn.map(w=>`<p class="mute" style="margin:6px 0 0">${w}</p>`).join('')}</div>`:''}
- <button class="btn dark" id="g-ci" type="button" style="margin-top:12px">Save invoice list (CSV)</button><button class="btn dark" id="g-ch" type="button">Save HSN summary (CSV)</button><div class="bl-msg" style="color:var(--ok)">${esc(msg)}</div>
+ <button class="btn dark" id="g-pdf" type="button" style="margin-top:12px">Save PDF report (for filing)</button><button class="btn ghost" id="g-ci" type="button">Excel list: invoices (CSV)</button><button class="btn ghost" id="g-ch" type="button">Excel list: HSN summary (CSV)</button><div class="bl-msg" id="g-msg" style="color:var(--ok)">${esc(msg)}</div>
  <h3 class="mute" style="margin:16px 4px 6px">Invoices</h3><div class="card">${r.length?tbl(['Invoice','Date','Customer','GSTIN','Taxable','CGST','SGST','IGST','Total'],r.map(x=>`<tr><td>${esc(x.b.inv)}</td><td>${dmy(x.b.date)}</td><td>${esc(x.b.customerName)}</td><td>${esc(x.b.gstin||'-')}</td><td>${f2(x.tx)}</td><td>${f2(x.cgst)}</td><td>${f2(x.sgst)}</td><td>${f2(x.igst)}</td><td>${f2(x.b.total)}</td></tr>`).join('')):'<p class="mute">No GST invoices in these dates.</p>'}</div>
  <h3 class="mute" style="margin:16px 4px 6px">HSN summary</h3><div class="card">${d.hs.length?tbl(['HSN','Item','Unit','Qty','Taxable','Rate %','Tax'],d.hs.map(x=>`<tr><td>${esc(x.hsn||'-')}</td><td>${esc(x.name)}</td><td>${x.uqc}</td><td>${x.qty}</td><td>${f2(x.tx)}</td><td>${x.rate}</td><td>${f2(x.cgst+x.sgst+x.igst)}</td></tr>`).join('')):'<p class="mute">Nothing to show.</p>'}</div></div>`;
  root.onchange=e=>{if(e.target.id==='g-f'||e.target.id==='g-t'){from=$('#g-f').value||from;to=$('#g-t').value||to;msg='';render()}};
  root.onclick=async e=>{const t=e.target.id,n=new Date();
   if(t==='g-m'){from=iso(new Date(n.getFullYear(),n.getMonth(),1));to=iso(n);msg='';render()}
   else if(t==='g-l'){from=iso(new Date(n.getFullYear(),n.getMonth()-1,1));to=iso(new Date(n.getFullYear(),n.getMonth(),0));msg='';render()}
+  else if(t==='g-pdf'){if(!d.rows.length){msg='There are no GST invoices in these dates.';return render()}
+   $('#g-msg').textContent='Making the PDF…';
+   try{await savePdf(await makePdf(d,from,to));msg='PDF created.'}catch(x){msg=x.message==='offline'?'Could not load the PDF tool. Check your internet and try again.':'The PDF was not saved.'}render()}
   else if(t==='g-ci'||t==='g-ch'){try{await saveFile((t==='g-ci'?'GST-invoices-':'GST-HSN-summary-')+from+'_to_'+to+'.csv',(t==='g-ci'?csvInvoices:csvHsn)(d));msg='File created.'}catch(x){msg='File was not saved.'}render()}};
 }
 export function mountGst(r){root=r;msg='';render()}
