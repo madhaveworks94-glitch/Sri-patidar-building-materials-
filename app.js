@@ -36,8 +36,8 @@ function overview(){
   <div class="card"><h3>Low stock</h3><div class="num">${low}</div><span class="pill">${db.products.length} items</span></div>
   <div class="card"><h3>Vehicles on trip</h3><div class="num">${db.trips.filter(t=>!t.done).length}</div><span class="pill">${db.vehicles.length} vehicles</span></div>
   <div class="card span2 wide"><h3>Last 7 days</h3><div class="legend"><span><i style="background:#141414"></i>Cash received</span><span><i style="background:#f26a21"></i>Udhaar given</span></div>${chart()}</div>
-  <div class="card wide" style="grid-column:1/-1"><h3>Recent bills</h3>${rows?`<table><tr><th>Bill</th><th>Customer</th><th class="hide-m">Type</th><th>Amount</th><th>Status</th><th class="hide-m">Date</th></tr>${rows}</table>`:`<div class="empty">No bills yet.<br><button class="btn dark" id="seed" style="margin:12px auto 0;max-width:240px">Load sample data</button></div>`}</div>
- </div>${db.bills.length?'<button class="link" id="clear">Clear all data</button>':''}`;
+  <div class="card wide" style="grid-column:1/-1"><h3>Recent bills</h3>${rows?`<table><tr><th>Bill</th><th>Customer</th><th class="hide-m">Type</th><th>Amount</th><th>Status</th><th class="hide-m">Date</th></tr>${rows}</table>`:`<div class="empty">No bills yet.<br>Add your items in Inventory, then make your first bill.</div>`}</div>
+ </div>`;
 }
 
 function render(){
