@@ -55,7 +55,7 @@ export function mountBilling(r){
   else if(t.id==='bl-pd'){st.paid=t.value;lines()}
  };
  root.onchange=e=>{const t=e.target,d=t.dataset;
-  if(d.f==='n'){const x=st.rows[d.i],p=prod(x.n);if(p){x.u=x.u&&p.units.some(u=>u.name===x.u)?x.u:p.baseUnit;x.r=String(p.rate*per(p,x.u));x.g=p.gst;$('#bl-rows').innerHTML=rowsH();lines();const q=root.querySelector(`[data-i="${d.i}"][data-f="q"]`);if(q)q.focus()}}
+  if(d.f==='n'){const x=st.rows[d.i],p=prod(x.n);if(p){x.u=x.u&&p.units.some(u=>u.name===x.u)?x.u:p.baseUnit;x.r=String(p.rate*per(p,x.u));x.g=p.taxable===false?0:p.gst;$('#bl-rows').innerHTML=rowsH();lines();const q=root.querySelector(`[data-i="${d.i}"][data-f="q"]`);if(q)q.focus()}}
   else if(d.f==='u'){const x=st.rows[d.i],p=prod(x.n);if(p){x.r=String(p.rate*per(p,x.u));$('#bl-rows').innerHTML=rowsH();lines()}}
   else if(t.id==='bl-c'){const c=db.customers.find(x=>x.name.toLowerCase()===st.cust.trim().toLowerCase());if(c&&c.phone&&!st.phone){st.phone=c.phone;$('#bl-ph').value=c.phone}}
  };
@@ -66,6 +66,8 @@ function saveBill(){
  const items=st.rows.filter(x=>x.n.trim()&&num(x.q)*num(x.r)>0).map(x=>{const p=prod(x.n);return{pid:p?p.id:'',name:x.n.trim(),qty:num(x.q),unit:x.u||(p?p.baseUnit:'pcs'),rate:num(x.r),gst:st.type==='gst'?num(x.g):0}});
  if(!items.length)return msg('Add at least one item with quantity and rate.');
  const c=calc(),name=st.cust.trim();
+ const need={};items.forEach(it=>{const p=db.products.find(x=>x.id===it.pid);if(p)need[p.id]=(need[p.id]||0)+it.qty*per(p,it.unit)});
+ for(const id in need){const p=db.products.find(x=>x.id===id),r=n=>Math.round(n*100)/100;if(need[id]>p.stock+1e-9)return msg(`Not enough stock: ${p.name} has only ${r(p.stock)} ${p.baseUnit}, but this bill needs ${r(need[id])}. Bill not saved.`)}
  if(c.bal>0&&!name)return msg('Enter the customer name to record udhaar.');
  let cu=name&&db.customers.find(x=>x.name.toLowerCase()===name.toLowerCase());
  if(name&&!cu){cu={id:uid(),name,phone:st.phone};db.customers.push(cu)}
