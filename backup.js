@@ -1,4 +1,4 @@
-import {db,save,dateFmt} from './store.js';
+import {db,save,dateFmt,clearAll} from './store.js';
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let root,msg='',pending=null;
@@ -21,10 +21,12 @@ function render(){
  <button class="btn dark" id="b-exp" type="button">Back up now</button></div>
  <div class="card" style="margin-top:12px"><h3>Restore from a backup file</h3>${pending?`<p>Replace everything on this phone with this backup (${pending.bills.length} bills, ${pending.products.length} items)?</p><button class="btn dark" id="b-yes" type="button">Yes, restore</button><button class="btn ghost" id="b-no" type="button">Cancel</button>`:`<input id="b-file" type="file" accept=".json,application/json">`}</div>
  <div class="card" style="margin-top:12px"><h3>Shop details</h3>${f('s-n','Shop name',db.shop.name)}${f('s-o','Owner name',db.shop.owner)}${f('s-g','Shop GSTIN',db.shop.gstin,'15-character GSTIN')}</div>
+ <div class="card" style="margin-top:12px"><h3>Start fresh</h3><p class="mute">Deletes all bills, customers, items and trips on this phone. Back up first.</p><button class="btn ghost" id="b-clr" type="button">Clear all data</button></div>
  <div class="bl-msg" id="b-msg" style="${msg.startsWith('Backup')?'color:var(--ok)':''}">${esc(msg)}</div></div>`;
  root.oninput=e=>{const t=e.target;if(t.id==='s-n')db.shop.name=t.value.trim()||'My Shop';else if(t.id==='s-o')db.shop.owner=t.value.trim()||'Owner';else if(t.id==='s-g')db.shop.gstin=t.value.trim().toUpperCase();else return;save()};
  root.onclick=async e=>{const t=e.target;
   if(t.id==='b-exp'){try{await exportFile();msg='Backup created.'}catch(err){msg='Backup was not saved.'}render()}
+  else if(t.id==='b-clr'){if(t.dataset.a){clearAll();location.hash='#/overview';location.reload()}else{t.dataset.a=1;t.textContent='Tap again to delete everything'}}
   else if(t.id==='b-no'){pending=null;render()}
   else if(t.id==='b-yes'){localStorage.setItem('dukaanos.v1',JSON.stringify(pending));pending=null;location.hash='#/overview';location.reload()}};
  root.onchange=e=>{if(e.target.id!=='b-file'||!e.target.files[0])return;const fr=new FileReader();
