@@ -29,13 +29,13 @@ function form(){
  root.innerHTML=`<div class="bl"><h1>${n?'Add item':'Edit item'}</h1><div class="card">${f('f-n','Item name',p.name,'Cement (PPC)')}${f('f-b','Smallest unit (what you count)',p.baseUnit,'bag, kg, pcs, cft')}
  <label style="margin-top:14px">Bigger units (optional)</label><p class="mute" style="margin:0">Example: 1 ton = 20 bags. Name the unit, then say how many smallest units it holds.</p>
  <div class="bl-3" style="grid-template-columns:1fr 1fr"><input id="f-u1" value="${esc(ex[0]?ex[0].name:'')}" placeholder="Unit, like ton"><input id="f-p1" inputmode="decimal" value="${ex[0]?ex[0].per:''}" placeholder="Holds how many"><input id="f-u2" value="${esc(ex[1]?ex[1].name:'')}" placeholder="Another unit"><input id="f-p2" inputmode="decimal" value="${ex[1]?ex[1].per:''}" placeholder="Holds how many"></div>
- ${f('f-r','Selling rate per smallest unit (₹)',p.rate,'395',1)}${f('f-g','GST %',p.gst,'18',1)}<label>Charge GST on this item?</label><select id="f-t"><option value="1" ${p.taxable===false?'':'selected'}>Yes, on GST bills</option><option value="0" ${p.taxable===false?'selected':''}>No, never add GST</option></select>${f('f-l','Low stock alert at (smallest units)',p.low,'50',1)}${n?f('f-s','Opening stock (smallest units)','','0',1):''}
+ ${f('f-r','Selling rate per smallest unit (₹)',p.rate,'395',1)}${f('f-g','GST %',p.gst,'18',1)}<label>Charge GST on this item?</label><select id="f-t"><option value="1" ${p.taxable===false?'':'selected'}>Yes, on GST bills</option><option value="0" ${p.taxable===false?'selected':''}>No, never add GST</option></select>${f('f-h','HSN code (for GST invoices)',p.hsn,'2523')}${f('f-l','Low stock alert at (smallest units)',p.low,'50',1)}${n?f('f-s','Opening stock (smallest units)','','0',1):''}
  <div class="bl-msg" id="f-m"></div><button class="btn dark" id="f-save" type="button">Save item</button><button class="btn ghost" id="f-x" type="button">Cancel</button></div></div>`;
  root.onclick=e=>{const t=e.target;
   if(t.id==='f-x'){edit=null;render()}
   else if(t.id==='f-save'){const name=$('#f-n').value.trim(),b=$('#f-b').value.trim();if(!name||!b)return $('#f-m').textContent='Enter the item name and its smallest unit.';
    const units=[{name:b,per:1}];[1,2].forEach(i=>{const u=$('#f-u'+i).value.trim(),k=num($('#f-p'+i).value);if(u&&k>0&&!units.some(x=>x.name===u))units.push({name:u,per:k})});
-   const d={name,baseUnit:b,units,rate:num($('#f-r').value),gst:num($('#f-g').value),taxable:$('#f-t').value==='1',low:num($('#f-l').value)};
+   const d={name,baseUnit:b,units,rate:num($('#f-r').value),gst:num($('#f-g').value),taxable:$('#f-t').value==='1',hsn:$('#f-h').value.trim(),low:num($('#f-l').value)};
    if(n){const np={id:uid(),stock:num($('#f-s').value),cost:0,...d};db.products.push(np);if(np.stock>0)note(np,np.stock,'in','Opening stock');sel=np.id}else Object.assign(p,d);
    save();edit=null;msg='Saved.';render()}};
 }
