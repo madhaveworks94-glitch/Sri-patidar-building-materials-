@@ -5,7 +5,7 @@ const sn=c=>{const s=STATES.find(x=>x[0]===c);return s?s[1]+' ('+c+')':c||''};
 const dmy=t=>{const x=new Date(t);return String(x.getDate()).padStart(2,'0')+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+x.getFullYear()};
 const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
 const load=u=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=u;s.onload=ok;s.onerror=()=>no(new Error('offline'));document.head.appendChild(s)});
-async function tools(){
+export async function tools(){
  if(!(window.jspdf&&window.jspdf.jsPDF))await load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
  if(!window.jspdf.jsPDF.API.autoTable)await load('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
  return window.jspdf.jsPDF;
