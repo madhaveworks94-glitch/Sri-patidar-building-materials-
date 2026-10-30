@@ -16,7 +16,7 @@ function data(){
  d.recv=bills.reduce((s,b)=>s+s0(b),0)+pays().filter(p=>p.date>=from).reduce((s,p)=>s+p.amount,0);
  d.owed=db.bills.reduce((s,b)=>s+due(b),0)+db.ledger.filter(l=>l.type==='opening').reduce((s,o)=>s+o.left,0);
  let rev=0,prof=0;const ir={},cr={};
- bills.forEach(b=>{cr[b.customerName]=(cr[b.customerName]||0)+b.total;(b.items||[]).forEach(i=>{const a=i.qty*i.rate;ir[i.name]=(ir[i.name]||0)+a;const p=db.products.find(x=>x.id===i.pid);if(p&&p.cost>0){rev+=a;prof+=a-i.qty*pu(p,i.unit)*p.cost}})});
+ bills.forEach(b=>{cr[b.customerName]=(cr[b.customerName]||0)+b.total;(b.items||[]).forEach(i=>{const a=i.tx!==undefined?i.tx:i.qty*i.rate;ir[i.name]=(ir[i.name]||0)+a;const p=db.products.find(x=>x.id===i.pid);if(p&&p.cost>0){rev+=a;prof+=a-i.qty*pu(p,i.unit)*p.cost}})});
  Object.assign(d,{rev,prof,items:top(ir,5),custs:top(cr,5)});
  const age=[0,0,0];db.bills.forEach(b=>{if(due(b)>0){const a=(Date.now()-b.date)/864e5;age[a<=30?0:a<=60?1:2]+=due(b)}});
  db.ledger.filter(l=>l.type==='opening'&&l.left>0).forEach(o=>{const a=(Date.now()-o.date)/864e5;age[a<=30?0:a<=60?1:2]+=o.left});
