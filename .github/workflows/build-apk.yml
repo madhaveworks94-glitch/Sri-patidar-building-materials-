@@ -13,10 +13,16 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Use the fixed signing key
+        env:
+          KS: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          mkdir -p ~/.android
+          if [ -n "$KS" ]; then echo "$KS" | base64 -d > ~/.android/debug.keystore; echo "Using fixed key"; else echo "No fixed key set"; fi
       - name: Collect web files
         run: |
           mkdir www
-          cp index.html styles.css app.js store.js billing.js khata.js inventory.js pdfimport.js fleet.js reports.js backup.js sw.js manifest.webmanifest icon-192.png icon-512.png www/
+          cp index.html styles.css app.js store.js billing.js khata.js inventory.js pdfimport.js fleet.js reports.js backup.js invoice.js gstreport.js gstpdf.js bills.js invoicepdf.js sw.js manifest.webmanifest icon-192.png icon-512.png www/
       - run: npm install
       - run: npx cap add android
       - run: pip install pillow || pip install --break-system-packages pillow
