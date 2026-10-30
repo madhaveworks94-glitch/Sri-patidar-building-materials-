@@ -16,14 +16,14 @@ export function data(){
  const a=new Date(from+'T00:00:00').getTime(),z=new Date(to+'T23:59:59.999').getTime();
  const all=db.bills.filter(b=>b.date>=a&&b.date<=z&&!b.cancelled);
  const inv=all.filter(b=>b.type==='gst').sort((x,y)=>x.date-y.date),kach=all.filter(b=>b.type!=='gst');
- const rows=inv.map(b=>{let tx=0,tax=0;b.items.forEach(i=>{const t=i.qty*i.rate;tx+=t;tax+=t*(i.gst||0)/100});return{b,tx,tax,cgst:b.inter?0:tax/2,sgst:b.inter?0:tax/2,igst:b.inter?tax:0}});
- const h={};inv.forEach(b=>b.items.forEach(i=>{const t=i.qty*i.rate,tax=t*(i.gst||0)/100,k=[i.hsn||'',i.unit,i.gst||0].join('|');const x=h[k]=h[k]||{hsn:i.hsn||'',name:i.name,uqc:UQC[i.unit]||'OTH',qty:0,tx:0,rate:i.gst||0,cgst:0,sgst:0,igst:0};x.qty+=i.qty;x.tx+=t;if(b.inter)x.igst+=tax;else{x.cgst+=tax/2;x.sgst+=tax/2}}));
+ const rows=inv.map(b=>{let tx=0,tax=0;b.items.forEach(i=>{const t=(i.tx!==undefined?i.tx:i.qty*i.rate);tx+=t;tax+=t*(i.gst||0)/100});return{b,tx,tax,cgst:b.inter?0:tax/2,sgst:b.inter?0:tax/2,igst:b.inter?tax:0}});
+ const h={};inv.forEach(b=>b.items.forEach(i=>{const t=(i.tx!==undefined?i.tx:i.qty*i.rate),tax=t*(i.gst||0)/100,k=[i.hsn||'',i.unit,i.gst||0].join('|');const x=h[k]=h[k]||{hsn:i.hsn||'',name:i.name,uqc:UQC[i.unit]||'OTH',qty:0,tx:0,rate:i.gst||0,cgst:0,sgst:0,igst:0};x.qty+=i.qty;x.tx+=t;if(b.inter)x.igst+=tax;else{x.cgst+=tax/2;x.sgst+=tax/2}}));
  return{rows,hs:Object.values(h),kach,noHsn:sum(inv,b=>b.items.filter(i=>!i.hsn).length)};
 }
 const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
 const csv=(head,lines)=>'\uFEFF'+[head,...lines].map(r=>r.map(q).join(',')).join('\r\n');
 export function csvInvoices(d){
- const L=[];d.rows.forEach(({b})=>{const g={};b.items.forEach(i=>{g[i.gst||0]=(g[i.gst||0]||0)+i.qty*i.rate});
+ const L=[];d.rows.forEach(({b})=>{const g={};b.items.forEach(i=>{g[i.gst||0]=(g[i.gst||0]||0)+(i.tx!==undefined?i.tx:i.qty*i.rate)});
   Object.entries(g).forEach(([r,tx])=>{const tax=tx*r/100;L.push([b.gstin?'B2B':'B2C',b.gstin||'',b.customerName,b.inv,dmy(b.date),b.total.toFixed(2),sn(b.state),'N','Regular',r,tx.toFixed(2),b.inter?'0.00':(tax/2).toFixed(2),b.inter?'0.00':(tax/2).toFixed(2),b.inter?tax.toFixed(2):'0.00'])})});
  return csv(['Type','GSTIN of Recipient','Receiver Name','Invoice Number','Invoice Date','Invoice Value','Place Of Supply','Reverse Charge','Invoice Type','Rate','Taxable Value','CGST','SGST','IGST'],L);
 }
