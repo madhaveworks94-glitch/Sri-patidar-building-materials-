@@ -27,7 +27,9 @@ export async function makePdf(d,from,to){
 
  head('A. Summary of outward supplies');
  const row=(l,x)=>[l,String(x.length),f2(sum(x,k=>k.tx)),f2(sum(x,k=>k.cgst)),f2(sum(x,k=>k.sgst)),f2(sum(x,k=>k.igst)),f2(sum(x,k=>k.b.total))];
- tbl(['Category','No. of invoices','Taxable value (Rs.)','CGST (Rs.)','SGST (Rs.)','IGST (Rs.)','Invoice value (Rs.)'],[row('B2B (recipient has GSTIN)',b2b),row('B2C (recipient unregistered)',b2c)],row('Total',r),[1,2,3,4,5,6]);
+ const cn=d.cn||[],canc=d.canc||[],neg=(l,x)=>[l,String(x.length),'-'+f2(sum(x,k=>k.tx)),'-'+f2(sum(x,k=>k.cgst)),'-'+f2(sum(x,k=>k.sgst)),'-'+f2(sum(x,k=>k.igst)),'-'+f2(sum(x,k=>k.b.total))];
+ const net=(f)=>f2(sum(r,f)-sum(cn,f));
+ tbl(['Category','No. of invoices','Taxable value (Rs.)','CGST (Rs.)','SGST (Rs.)','IGST (Rs.)','Invoice value (Rs.)'],[row('B2B (recipient has GSTIN)',b2b),row('B2C (recipient unregistered)',b2c),neg('Less: credit notes issued',cn)],['Net total',String(r.length),net(k=>k.tx),net(k=>k.cgst),net(k=>k.sgst),net(k=>k.igst),net(k=>k.b.total)],[1,2,3,4,5,6]);
 
  head('B. Invoice-wise details');
  tbl(['Sr','Invoice no.','Date','Recipient','GSTIN of recipient','Place of supply','Taxable (Rs.)','CGST (Rs.)','SGST (Rs.)','IGST (Rs.)','Invoice value (Rs.)'],
@@ -44,8 +46,12 @@ export async function makePdf(d,from,to){
  tbl(['Tax rate %','Taxable value (Rs.)','CGST (Rs.)','SGST (Rs.)','IGST (Rs.)','Total tax (Rs.)'],rates.map(k=>[String(k),f2(g[k].tx),f2(g[k].cgst),f2(g[k].sgst),f2(g[k].igst),f2(g[k].cgst+g[k].sgst+g[k].igst)]),
   ['Total',f2(sum(r,x=>x.tx)),f2(sum(r,x=>x.cgst)),f2(sum(r,x=>x.sgst)),f2(sum(r,x=>x.igst)),f2(sum(r,x=>x.cgst+x.sgst+x.igst))],[0,1,2,3,4,5]);
 
+ head('F. Credit notes issued');
+ tbl(['Sr','Credit note no.','Date','Against invoice','Recipient','Taxable (Rs.)','CGST (Rs.)','SGST (Rs.)','IGST (Rs.)','Value (Rs.)'],cn.length?cn.map((x,i)=>[String(i+1),x.b.inv,dmy(x.b.date),x.b.billInv||'',x.b.customerName,f2(x.tx),f2(x.cgst),f2(x.sgst),f2(x.igst),f2(x.b.total)]):[['','None','','','','','','','','']],null,[0,5,6,7,8,9]);
+ head('G. Cancelled invoice numbers');
+ doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text(canc.length?doc.splitTextToSize(canc.map(x=>x.inv).join(', '),W-20):'None',10,y+3);y+=12;
  if(y>H-60){doc.addPage();y=14}
- head('E. Declaration');
+ head('H. Declaration');
  doc.setFont('helvetica','normal');doc.setFontSize(9);
  const t=doc.splitTextToSize('I declare that the particulars given in this statement are true and correct and have been compiled from the tax invoices issued by the registered person during the period stated above. No material information has been concealed.',W-20);
  doc.text(t,10,y+3);y+=t.length*4.5+12;
