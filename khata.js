@@ -9,7 +9,7 @@ const bal=c=>db.bills.filter(b=>b.customerId===c).reduce((s,b)=>s+due(b),0)+open
 let root,sel=null,q='',msg='';
 const $=s=>root.querySelector(s);
 
-function receive(cid,amt,mode){
+export function receive(cid,amt,mode){
  let left=amt;const allocs=[];
  const items=[...db.bills.filter(b=>b.customerId===cid&&due(b)>0).map(b=>({k:'bill',id:b.id,date:b.date,o:b})),...opens(cid).filter(o=>o.left>0).map(o=>({k:'open',id:o.id,date:o.date,o}))].sort((a,b)=>a.date-b.date);
  for(const it of items){if(left<=0)break;const x=Math.min(it.k==='bill'?due(it.o):it.o.left,left);if(it.k==='bill')it.o.paid+=x;else it.o.left-=x;allocs.push({k:it.k,id:it.id,amt:x});left-=x}
