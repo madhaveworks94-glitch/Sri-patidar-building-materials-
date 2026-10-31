@@ -7,6 +7,8 @@ import {mountReports} from './reports.js';
 import {mountBackup} from './backup.js';
 import {mountGst} from './gstreport.js';
 import {mountBills} from './bills.js';
+import {gate,allowed,who,initAuth} from './auth.js';
+import {initLang} from './lang.js';
 const $=s=>document.querySelector(s);
 const P={home:'M3 11l9-8 9 8v10h-6v-6H9v6H3z',receipt:'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',book:'M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3zM5 17a3 3 0 013-3h11',box:'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',truck:'M2 6h11v10H2zM13 10h5l3 3v3h-8zM6 19h.01M17 19h.01',chart:'M4 20V10M10 20V4M16 20v-7M22 20H2'};
 const ic=n=>`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${P[n]}"/></svg>`;
@@ -43,11 +45,12 @@ function overview(){
 }
 
 function render(){
- const r=(location.hash.replace('#/','')||'overview'),k=NAV.find(n=>n[0]===r)?r:['backup','gst','bills'].includes(r)?r:'overview';
- $('#nav').innerHTML=NAV.map(([id,l,i])=>`<a href="#/${id}" class="${id===k?'on':''}">${ic(i)}<span>${l}</span></a>`).join('');
- $('#shopname').textContent=db.shop.name;$('#me').textContent=db.shop.owner[0];$('#me').onclick=()=>{location.hash='#/backup'};
+ if(!gate(render))return;
+ const r0=(location.hash.replace('#/','')||'overview'),r=allowed(r0)?r0:'billing',k=NAV.find(n=>n[0]===r)?r:['backup','gst','bills'].includes(r)?r:'overview';
+ $('#nav').innerHTML=NAV.filter(n=>allowed(n[0])).map(([id,l,i])=>`<a href="#/${id}" class="${id===k?'on':''}">${ic(i)}<span>${l}</span></a>`).join('');
+ $('#shopname').textContent=db.shop.name;$('#me').textContent=(who()||db.shop.owner)[0].toUpperCase();$('#nav').style.gridTemplateColumns='repeat('+NAV.filter(n=>allowed(n[0])).length+',1fr)';$('#me').onclick=()=>{location.hash='#/backup'};
  if(k==='billing')mountBilling($('#view'));else if(k==='khata')mountKhata($('#view'));else if(k==='stock')mountStock($('#view'));else if(k==='fleet')mountFleet($('#view'));else if(k==='reports')mountReports($('#view'));else if(k==='backup')mountBackup($('#view'));else if(k==='gst')mountGst($('#view'));else if(k==='bills')mountBills($('#view'));else $('#view').innerHTML=k==='overview'?overview():`<h1>${NAV.find(n=>n[0]===k)[1]}</h1><div class="card soon"><b>${STEP[k]}</b><p class="sub">Coming in the next step.</p></div>`;
  if($('#seed'))$('#seed').onclick=()=>{seed();render()};
  if($('#clear'))$('#clear').onclick=e=>{if(e.target.dataset.a){clearAll();render()}else{e.target.dataset.a=1;e.target.textContent='Tap again to delete everything'}};
 }
-addEventListener('hashchange',render);render();
+addEventListener('hashchange',render);render();initAuth();initLang();
