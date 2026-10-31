@@ -12,7 +12,7 @@ const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,n);
 function data(){
  const n=N[per],from=sod(Date.now())-(n-1)*864e5,bills=db.bills.filter(b=>b.date>=from),al=pays().flatMap(p=>p.allocs);
  const s0=b=>b.paid-al.filter(a=>a.k==='bill'&&a.id===b.id).reduce((s,a)=>s+a.amt,0);
- const d={n,from,bills,sales:bills.reduce((s,b)=>s+b.total,0),tax:bills.reduce((s,b)=>s+(b.type==='gst'?num(b.tax):0),0)};
+ const d={n,from,bills,sales:bills.reduce((s,b)=>s+b.total,0)-(db.creditNotes||[]).filter(c=>c.date>=from).reduce((s,c)=>s+c.total,0),tax:bills.reduce((s,b)=>s+(b.type==='gst'?num(b.tax):0),0)};
  d.recv=bills.reduce((s,b)=>s+s0(b),0)+pays().filter(p=>p.date>=from).reduce((s,p)=>s+p.amount,0);
  d.owed=db.bills.reduce((s,b)=>s+due(b),0)+db.ledger.filter(l=>l.type==='opening').reduce((s,o)=>s+o.left,0);
  let rev=0,prof=0;const ir={},cr={};
