@@ -14,13 +14,13 @@ export async function makeInvoicePdf(b){
  const L=b.items.map(i=>{const tx=i.tx!==undefined?i.tx:i.qty*i.rate,tax=tx*(i.gst||0)/100;return{...i,tx,tax,gr:i.qty*i.rate}});
  const base={theme:'grid',margin:{left:10,right:10},styles:{fontSize:8.5,cellPadding:1.8,lineColor:[70,70,70],lineWidth:.15,textColor:20}};
  let y=14;
- doc.setFont('helvetica','bold');doc.setFontSize(15);doc.text(g?'TAX INVOICE':'CASH MEMO / ESTIMATE',W/2,y,{align:'center'});
+ doc.setFont('helvetica','bold');doc.setFontSize(15);doc.text(b.isCN?(g?'CREDIT NOTE':'RETURN NOTE'):(g?'TAX INVOICE':'CASH MEMO / ESTIMATE'),W/2,y,{align:'center'});
  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.text(g?'Original for Recipient':b.inv,W-10,y,{align:'right'});y+=7;
  doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text(sup.name||'',10,y);y+=5;
  doc.setFont('helvetica','normal');doc.setFontSize(9);
  [sup.addr,sup.phone?'Phone: '+sup.phone:'',g?'GSTIN: '+(sup.gstin||'Not set')+'   State: '+sn(sup.state):''].filter(Boolean).forEach(t=>{doc.text(t,10,y);y+=4.5});
  y+=2;
- doc.autoTable({...base,startY:y,body:[g?['Invoice No: '+b.inv+'\nDate: '+dmy(b.date)+'\nReverse charge: No','Place of supply: '+sn(b.state)]:['Date: '+dmy(b.date)+'\nNo: '+b.inv,'To: '+b.customerName+(b.phone?'\n'+b.phone:'')]],columnStyles:{0:{cellWidth:95}}});
+ doc.autoTable({...base,startY:y,body:[g?[(b.isCN?'Credit note no: ':'Invoice No: ')+b.inv+'\nDate: '+dmy(b.date)+(b.isCN?'\nAgainst invoice: '+b.billInv:'\nReverse charge: No'),'Place of supply: '+sn(b.state)]:['Date: '+dmy(b.date)+'\nNo: '+b.inv,'To: '+b.customerName+(b.phone?'\n'+b.phone:'')]],columnStyles:{0:{cellWidth:95}}});
  y=doc.lastAutoTable.finalY;
  if(g){doc.autoTable({...base,startY:y,body:[['Bill to: '+b.customerName+'\n'+(b.addr||'')+(b.phone?'\nPhone: '+b.phone:'')+'\nGSTIN: '+(b.gstin||'Unregistered')+'\nState: '+sn(b.state)]]});y=doc.lastAutoTable.finalY}
  y+=4;
@@ -32,7 +32,7 @@ export async function makeInvoicePdf(b){
  const rows=[];
  if(b.disc>0.004)rows.push(['Discount given',f2(b.disc)]);
  if(g){const tax=L.reduce((s,x)=>s+x.tax,0);rows.push(['Taxable value',f2(L.reduce((s,x)=>s+x.tx,0))]);if(b.inter)rows.push(['IGST',f2(tax)]);else{rows.push(['CGST',f2(tax/2)]);rows.push(['SGST',f2(tax/2)])}if(b.round)rows.push(['Round off',f2(b.round)])}
- rows.push([g?'Invoice total':'Total',f2(b.total)],['Paid',f2(b.paid)],['Balance due',f2(bal)]);
+ rows.push([g?'Invoice total':'Total',f2(b.total)]);if(!b.isCN)rows.push(['Paid',f2(b.paid)],['Balance due',f2(bal)]);
  doc.autoTable({...base,startY:y,body:rows,tableWidth:80,margin:{left:W-90,right:10},columnStyles:{1:{halign:'right'}},styles:{...base.styles,fontStyle:'bold'}});
  y=doc.lastAutoTable.finalY+6;
  doc.setFont('helvetica','normal');doc.setFontSize(9);
