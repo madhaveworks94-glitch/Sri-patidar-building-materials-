@@ -9,6 +9,7 @@ import {mountGst} from './gstreport.js';
 import {mountBills} from './bills.js';
 import {gate,allowed,who,initAuth} from './auth.js';
 import {initLang} from './lang.js';
+import {auto} from './clean.js';
 const $=s=>document.querySelector(s);
 const P={home:'M3 11l9-8 9 8v10h-6v-6H9v6H3z',receipt:'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',book:'M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3zM5 17a3 3 0 013-3h11',box:'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',truck:'M2 6h11v10H2zM13 10h5l3 3v3h-8zM6 19h.01M17 19h.01',chart:'M4 20V10M10 20V4M16 20v-7M22 20H2'};
 const ic=n=>`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${P[n]}"/></svg>`;
@@ -53,4 +54,4 @@ function render(){
  if($('#seed'))$('#seed').onclick=()=>{seed();render()};
  if($('#clear'))$('#clear').onclick=e=>{if(e.target.dataset.a){clearAll();render()}else{e.target.dataset.a=1;e.target.textContent='Tap again to delete everything'}};
 }
-addEventListener('hashchange',render);render();initAuth();initLang();
+auto();addEventListener('hashchange',render);render();initAuth();initLang();
