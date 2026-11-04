@@ -82,6 +82,7 @@ function saveBill(){
  if(c.bal>0&&!name)return msg('Enter the customer name to record udhaar.');
  let cu=name&&db.customers.find(x=>x.name.toLowerCase()===name.toLowerCase());
  if(name&&!cu){cu={id:uid(),name,phone:st.phone};db.customers.push(cu)}
+ if(cu&&c.bal>0)cu.khata=true;
  const k=st.type;db.seq[k]=db.seq[k]||1;
  const b={id:uid(),no:db.seq.bill++,inv:k==='gst'?'INV/'+fy()+'/'+String(db.seq['g'+fy()]=(db.seq['g'+fy()]||0)+1).padStart(4,'0'):'EST-'+String(db.seq[k]++).padStart(3,'0'),type:k,customerId:cu?cu.id:'',customerName:name||'Walk-in',phone:st.phone,gstin:st.gstin,items,gross:c.gross,disc:c.disc,sub:c.sub,tax:c.tax,total:c.total,paid:c.paid,round:c.round,addr:st.addr,state:st.state,inter:k==='gst'&&inter(),sup:{name:db.shop.name,addr:db.shop.addr||'',phone:db.shop.phone||'',gstin:db.shop.gstin||'',state:shopSt()},date:Date.now()};
  items.forEach(it=>{const p=db.products.find(x=>x.id===it.pid);if(p)p.stock-=it.qty*per(p,it.unit)});
