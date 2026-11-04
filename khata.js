@@ -1,4 +1,6 @@
 import {db,save,uid,inr,dateFmt} from './store.js';
+import {makeLedgerPdf} from './ledgerpdf.js';
+import {savePdf} from './invoicepdf.js';
 document.head.insertAdjacentHTML('beforeend','<style>button.kh{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;font:inherit;color:inherit;margin-bottom:10px;cursor:pointer}.kh-r{padding:10px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px}.kh-r small{color:var(--mute)}</style>');
 const num=v=>parseFloat(v)||0;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -20,7 +22,7 @@ function undo(cid){
  p.allocs.forEach(a=>{if(a.k==='bill'){const b=db.bills.find(x=>x.id===a.id);if(b)b.paid-=a.amt}else{const o=db.ledger.find(x=>x.id===a.id);if(o)o.left+=a.amt}});
  db.ledger=db.ledger.filter(x=>x!==p);save();return true;
 }
-function stmt(cid){
+export function stmt(cid){
  const al=(k,id)=>pays().flatMap(p=>p.allocs).filter(a=>a.k===k&&a.id===id).reduce((s,a)=>s+a.amt,0),ev=[];
  db.bills.filter(b=>b.customerId===cid).forEach(b=>{const s0=b.paid-al('bill',b.id);ev.push({d:b.date,t:'Bill '+(b.inv||'#'+b.no),n:s0>0?'Paid '+inr(s0)+' at sale':'',dr:b.total-s0})});
  opens(cid).forEach(o=>ev.push({d:o.date,t:'Old balance',n:o.note||'',dr:o.amount}));
@@ -29,21 +31,21 @@ function stmt(cid){
 }
 
 function list(){
- const rows=db.customers.map(c=>({c,b:bal(c.id)})).filter(x=>q?x.c.name.toLowerCase().includes(q.toLowerCase()):x.b>0).sort((a,b)=>b.b-a.b);
+ const rows=db.customers.map(c=>({c,b:bal(c.id)})).filter(x=>q?x.c.name.toLowerCase().includes(q.toLowerCase()):(x.c.khata||x.b>0)).sort((a,b)=>b.b-a.b);
  const tot=db.customers.reduce((s,c)=>s+bal(c.id),0),n=db.customers.filter(c=>bal(c.id)>0).length;
  root.innerHTML=`<div class="bl"><h1>Khata</h1><p class="mute">Who owes you money.</p>
  <div class="card hero"><h3>Total to collect</h3><div class="num">${inr(tot)}</div><span class="pill">${n} customers</span></div>
  <label>Search customer</label><input id="kh-q" value="${esc(q)}" placeholder="Name">
- <div style="margin-top:12px">${rows.length?rows.map(({c,b})=>`<button class="card kh" data-c="${c.id}"><span><b>${esc(c.name)}</b><br><small class="mute">${esc(c.phone||'No phone')}</small></span><b class="${b>0?'bad':'ok'}">${b>0?inr(b):'Settled'}</b></button>`).join(''):'<p class="mute">No customers with udhaar.</p>'}</div>
- <button class="btn ghost" id="kh-old" type="button">+ Add old udhaar</button><div id="kh-form"></div></div>`;
+ <div style="margin-top:12px">${rows.length?rows.map(({c,b})=>`<button class="card kh" data-c="${c.id}"><span><b>${esc(c.name)}</b><br><small class="mute">${esc(c.phone||'No phone')}</small></span><b class="${b>0?'bad':'ok'}">${b>0?inr(b):'Settled'}</b></button>`).join(''):'<p class="mute">No khata accounts yet. Add one below.</p>'}</div>
+ <button class="btn ghost" id="kh-old" type="button">+ New customer khata</button><div id="kh-form"></div></div>`;
  $('#kh-q').oninput=e=>{q=e.target.value;const p=e.target.selectionStart;list();const i=$('#kh-q');i.focus();i.setSelectionRange(p,p)};
  root.onclick=e=>{const t=e.target,c=t.closest('[data-c]');
   if(c){sel=c.dataset.c;msg='';detail()}
-  else if(t.id==='kh-old')$('#kh-form').innerHTML=`<div class="card" style="margin-top:10px"><label>Customer name</label><input id="o-n" list="o-l"><datalist id="o-l">${db.customers.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist><label>Phone (optional)</label><input id="o-p" type="tel" inputmode="numeric"><label>Old balance (₹)</label><input id="o-a" inputmode="decimal"><label>Note (optional)</label><input id="o-t" placeholder="From the old register"><div class="bl-msg" id="o-m"></div><button class="btn dark" id="o-s" type="button">Save</button></div>`;
-  else if(t.id==='o-s'){const n=$('#o-n').value.trim(),a=num($('#o-a').value);if(!n||a<=0)return $('#o-m').textContent='Enter the name and a balance above zero.';
+  else if(t.id==='kh-old')$('#kh-form').innerHTML=`<div class="card" style="margin-top:10px"><label>Customer name</label><input id="o-n" list="o-l"><datalist id="o-l">${db.customers.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist><label>Phone (optional)</label><input id="o-p" type="tel" inputmode="numeric"><label>Old balance (₹, leave empty if none)</label><input id="o-a" inputmode="decimal"><label>Note (optional)</label><input id="o-t" placeholder="From the old register"><div class="bl-msg" id="o-m"></div><button class="btn dark" id="o-s" type="button">Save</button></div>`;
+  else if(t.id==='o-s'){const n=$('#o-n').value.trim(),a=num($('#o-a').value);if(!n||a<0)return $('#o-m').textContent='Enter the customer name.';
    let c=db.customers.find(x=>x.name.toLowerCase()===n.toLowerCase());if(!c){c={id:uid(),name:n,phone:''};db.customers.push(c)}
    if($('#o-p').value.trim())c.phone=$('#o-p').value.replace(/\D/g,'');
-   db.ledger.push({id:uid(),customerId:c.id,type:'opening',amount:a,left:a,note:$('#o-t').value.trim(),date:Date.now()});save();sel=c.id;detail()}
+   c.khata=true;if(a>0)db.ledger.push({id:uid(),customerId:c.id,type:'opening',amount:a,left:a,note:$('#o-t').value.trim(),date:Date.now()});save();sel=c.id;detail()}
  };
 }
 
@@ -55,13 +57,15 @@ function detail(){
  root.innerHTML=`<div class="bl"><button class="link" id="kh-back" style="margin:0 0 8px">← All customers</button><h1 style="margin:0">${esc(c.name)}</h1><div class="mute">${esc(c.phone||'No phone saved')}</div>
  <div class="card" style="margin-top:12px"><h3>Balance</h3><div class="num ${b>0?'bad':'ok'}">${b>0?inr(b):'Settled'}</div>
  ${b>0?`<div class="btns"><button class="btn dark" id="kh-pay" type="button">Receive payment</button><a class="btn ghost" target="_blank" rel="noopener" href="${wa}">Remind</a></div>`:''}<div id="kh-panel"></div><div class="bl-msg" id="kh-msg">${esc(msg)}</div></div>
+ <div class="card" style="margin-top:12px"><h3>Ledger PDF</h3><label>From</label><input type="date" id="k-f" value="${new Date().getFullYear()-(new Date().getMonth()<3?1:0)}-04-01"><label>To</label><input type="date" id="k-t" value="${new Date().toISOString().slice(0,10)}"><button class="btn dark" id="k-pdf" type="button">Download ledger PDF</button><div class="bl-msg" id="k-msg"></div></div>
  <h3 class="mute" style="margin:16px 4px 4px">Statement</h3><div class="card">${stmt(c.id).map(e=>`<div class="kh-r"><span><b>${esc(e.t)}</b><br><small>${dateFmt(e.d)}${e.n?', '+esc(e.n):''}</small></span><span style="text-align:right"><b class="${e.cr?'ok':''}">${e.cr?'− '+inr(e.cr):'+ '+inr(e.dr)}</b><br><small>Balance ${inr(e.r)}</small></span></div>`).join('')||'<p class="mute">No activity yet.</p>'}</div>
  <button class="btn ghost" id="kh-undo" type="button" style="margin-top:12px">Undo last payment</button></div>`;
- root.onclick=e=>{const t=e.target;
+ root.onclick=async e=>{const t=e.target;
   if(t.id==='kh-back'){sel=null;list()}
   else if(t.id==='kh-pay')$('#kh-panel').innerHTML=`<label>Amount received (₹)</label><input id="p-a" inputmode="decimal" value="${b}"><label>Mode</label><select id="p-m"><option>Cash</option><option>UPI</option><option>Cheque</option><option>Bank transfer</option></select><button class="btn dark" id="p-s" type="button" style="margin-top:10px;width:100%">Save payment</button>`;
   else if(t.id==='p-s'){const a=num($('#p-a').value);if(a<=0){msg='Enter the amount received.';return detail()}
    receive(c.id,Math.min(a,b),$('#p-m').value);msg=a>b?`Saved ${inr(b)}. The extra ${inr(a-b)} was not recorded because advances are not supported yet.`:'Payment saved.';detail()}
+  else if(t.id==='k-pdf'){const m=$('#k-msg');m.style.color='var(--mute)';m.textContent='Making the PDF…';try{await savePdf(await makeLedgerPdf(c.id,$('#k-f').value,$('#k-t').value));m.textContent='PDF created.'}catch(x){m.style.color='var(--bad)';m.textContent=x.message==='offline'?'Could not load the PDF tool. Check your internet and try again.':'The PDF was not saved.'}}
   else if(t.id==='kh-undo'){msg=undo(c.id)?'Last payment undone.':'No payment to undo.';detail()}
  };
 }
