@@ -31,12 +31,13 @@ export function stmt(cid){
 }
 
 function list(){
- const rows=db.customers.map(c=>({c,b:bal(c.id)})).filter(x=>q?x.c.name.toLowerCase().includes(q.toLowerCase()):(x.c.khata||x.b>0)).sort((a,b)=>b.b-a.b);
+ const hist=c=>c.khata||db.ledger.some(l=>l.customerId===c.id)||bal(c.id)>0;
+ const rows=db.customers.filter(hist).map(c=>({c,b:bal(c.id)})).filter(x=>!q||x.c.name.toLowerCase().includes(q.toLowerCase())).sort((a,b)=>b.b-a.b||a.c.name.localeCompare(b.c.name));
  const tot=db.customers.reduce((s,c)=>s+bal(c.id),0),n=db.customers.filter(c=>bal(c.id)>0).length;
- root.innerHTML=`<div class="bl"><h1>Khata</h1><p class="mute">Who owes you money.</p>
+ root.innerHTML=`<div class="bl"><h1>Khata</h1><p class="mute">Customers with udhaar, biggest first. Settled customers stay at the bottom.</p>
  <div class="card hero"><h3>Total to collect</h3><div class="num">${inr(tot)}</div><span class="pill">${n} customers</span></div>
  <label>Search customer</label><input id="kh-q" value="${esc(q)}" placeholder="Name">
- <div style="margin-top:12px">${rows.length?rows.map(({c,b})=>`<button class="card kh" data-c="${c.id}"><span><b>${esc(c.name)}</b><br><small class="mute">${esc(c.phone||'No phone')}</small></span><b class="${b>0?'bad':'ok'}">${b>0?inr(b):'Settled'}</b></button>`).join(''):'<p class="mute">No khata accounts yet. Add one below.</p>'}</div>
+ <div style="margin-top:12px">${rows.length?rows.map(({c,b},i)=>`<button class="card kh" data-c="${c.id}"><span><b>${i+1}. ${esc(c.name)}</b><br><small class="mute">${esc(c.phone||'No phone')}</small></span><b class="${b>0?'bad':'ok'}">${b>0?inr(b):'Settled'}</b></button>`).join(''):'<p class="mute">No khata accounts yet. Add one below.</p>'}</div>
  <button class="btn ghost" id="kh-old" type="button">+ New customer khata</button><div id="kh-form"></div></div>`;
  $('#kh-q').oninput=e=>{q=e.target.value;const p=e.target.selectionStart;list();const i=$('#kh-q');i.focus();i.setSelectionRange(p,p)};
  root.onclick=e=>{const t=e.target,c=t.closest('[data-c]');
