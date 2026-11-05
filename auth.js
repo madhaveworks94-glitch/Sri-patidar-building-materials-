@@ -1,6 +1,6 @@
 import {db,save} from './store.js';
 let user=null,hiddenAt=0;
-const OWNER=['overview','billing','khata','stock','fleet','reports','backup','gst','bills'],STAFF=['billing','khata','stock'];
+const OWNER=['overview','billing','khata','stock','fleet','reports','backup','gst','bills','docs','spend'],STAFF=['billing','khata','stock'];
 export async function hash(salt,pass){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+':'+pass));return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('')}
 export const who=()=>user?user.name:null;
 export const role=()=>user?user.role:'owner';
