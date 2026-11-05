@@ -1,5 +1,5 @@
 import {db} from './store.js';
-import {STATES} from './invoice.js';
+import {STATES,gstView} from './invoice.js';
 import {makePdf} from './gstpdf.js';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const f2=n=>Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -15,9 +15,9 @@ const $=s=>root.querySelector(s);
 export function data(){
  const a=new Date(from+'T00:00:00').getTime(),z=new Date(to+'T23:59:59.999').getTime();
  const all=db.bills.filter(b=>b.date>=a&&b.date<=z&&!b.cancelled);
- const inv=all.filter(b=>b.type==='gst').sort((x,y)=>x.date-y.date),kach=all.filter(b=>b.type!=='gst');
+ const inv=all.filter(b=>b.type==='gst').map(gstView).filter(Boolean).sort((x,y)=>x.date-y.date),kach=all.filter(b=>b.type!=='gst');
  const rowOf=b=>{let tx=0,tax=0;b.items.forEach(i=>{const t=(i.tx!==undefined?i.tx:i.qty*i.rate);tx+=t;tax+=t*(i.gst||0)/100});return{b,tx,tax,cgst:b.inter?0:tax/2,sgst:b.inter?0:tax/2,igst:b.inter?tax:0}};
- const rows=inv.map(rowOf),cn=(db.creditNotes||[]).filter(c=>c.type==='gst'&&c.date>=a&&c.date<=z).map(rowOf),canc=(db.cancelled||[]).filter(c=>c.type==='gst'&&c.date>=a&&c.date<=z);
+ const rows=inv.map(rowOf),cn=(db.creditNotes||[]).filter(c=>c.type==='gst'&&c.date>=a&&c.date<=z).map(gstView).filter(Boolean).map(rowOf),canc=(db.cancelled||[]).filter(c=>c.type==='gst'&&c.date>=a&&c.date<=z);
  const h={};inv.forEach(b=>b.items.forEach(i=>{const t=(i.tx!==undefined?i.tx:i.qty*i.rate),tax=t*(i.gst||0)/100,k=[i.hsn||'',i.unit,i.gst||0].join('|');const x=h[k]=h[k]||{hsn:i.hsn||'',name:i.name,uqc:UQC[i.unit]||'OTH',qty:0,tx:0,rate:i.gst||0,cgst:0,sgst:0,igst:0};x.qty+=i.qty;x.tx+=t;if(b.inter)x.igst+=tax;else{x.cgst+=tax/2;x.sgst+=tax/2}}));
  return{rows,cn,canc,hs:Object.values(h),kach,noHsn:sum(inv,b=>b.items.filter(i=>!i.hsn).length)};
 }
