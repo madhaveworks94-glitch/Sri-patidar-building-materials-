@@ -33,7 +33,6 @@ const bars=(rows,max)=>rows.length?rows.map(([k,v])=>`<div style="margin:8px 0">
 
 function render(){
  const d=data(),pm=d.rev>0?Math.round(100*d.prof/d.rev):null;
- const txt=[`${db.shop.name}, ${LB[per]}`,`Sales: ${inr(d.sales)} (${d.bills.length} bills)`,`Money received: ${inr(d.recv)}`,`Udhaar pending: ${inr(d.owed)}`,d.tax?`GST collected: ${inr(d.tax)}`:'',d.rev>0?`Profit estimate: ${inr(d.prof)}`:'',d.items[0]?`Top item: ${d.items[0][0]}`:''].filter(Boolean).join('\n');
  root.innerHTML=`<div class="bl"><h1>Reports</h1><div class="seg">${Object.keys(N).map(k=>`<button data-p="${k}" class="${k===per?'on':''}">${k==='today'?'Today':k==='week'?'7 days':'30 days'}</button>`).join('')}</div>
  <div class="grid"><div class="card hero wide"><h3>Sales, ${LB[per].toLowerCase()}</h3><div class="num">${inr(d.sales)}</div><span class="pill">${d.bills.length} bills</span></div>
  <div class="card"><h3>Money received</h3><div class="num">${inr(d.recv)}</div></div><div class="card"><h3>Udhaar pending</h3><div class="num bad">${inr(d.owed)}</div></div>
@@ -43,8 +42,7 @@ function render(){
  <div class="card" style="margin-top:12px"><h3>Top customers</h3>${bars(d.custs,d.custs[0]?d.custs[0][1]:1)}</div>
  <div class="card" style="margin-top:12px"><h3>How old is the udhaar</h3><div class="bl-l"><span>Up to 30 days</span><b>${inr(d.age[0])}</b></div><div class="bl-l"><span>31 to 60 days</span><b>${inr(d.age[1])}</b></div><div class="bl-l"><span>Over 60 days</span><b class="${d.age[2]?'bad':''}">${inr(d.age[2])}</b></div></div>
  <div class="card" style="margin-top:12px"><h3>Delivery vehicles, net</h3><div class="num ${d.fleet<0?'bad':''}">${inr(d.fleet)}</div></div>
- <a class="btn ghost" href="#/gst" style="margin-top:12px">GST report for filing</a>
- <a class="btn dark" style="margin-top:12px" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(txt)}">Send report on WhatsApp</a></div>`;
+ </div>`;
  root.onclick=e=>{const p=e.target.dataset.p;if(p){per=p;render()}};
 }
 export function mountReports(r){root=r;render()}
