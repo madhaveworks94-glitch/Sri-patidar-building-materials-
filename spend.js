@@ -14,7 +14,7 @@ function list(){
  const n=new Date(),ms=new Date(n.getFullYear(),n.getMonth(),1).getTime();
  const month=sp().filter(e=>e.type==='spend'&&e.date>=ms).reduce((s,e)=>s+e.amount,0);
  const dues=parties().map(p=>({p,o:owe(p)})).filter(x=>x.o>0.004).sort((a,b)=>b.o-a.o);
- root.innerHTML=`<div class="bl"><h1>Spend and suppliers</h1>
+ root.innerHTML=`<div class="bl"><h1>Business ledger</h1><p class="mute">Add what you spend, buy or pay to suppliers. Fleet fuel and costs go here too.</p><a href="#/docs" class="mute">Download the business ledger PDF in Docs →</a>
  <div class="card hero"><h3>Spent this month</h3><div class="num">${inr(month)}</div><span class="pill">You owe suppliers ${inr(dues.reduce((s,x)=>s+x.o,0))}</span></div>
  <button class="btn dark" id="s-add" type="button" style="margin-top:12px">+ Add spend or purchase</button><div id="s-form"></div>
  ${dues.length?`<h3 class="mute" style="margin:16px 4px 6px">You owe suppliers</h3>${dues.map(x=>`<div class="card" style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center"><span><b>${esc(x.p)}</b><br><small class="bad"><b>${inr(x.o)}</b></small></span><button class="btn ghost" style="flex:none;width:auto;padding:0 18px;margin:0" data-pay="${esc(x.p)}">Pay</button></div>`).join('')}`:''}
