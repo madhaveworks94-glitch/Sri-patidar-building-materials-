@@ -1,5 +1,6 @@
 import {db,save,uid,inr} from './store.js';
-import {invoiceHTML,STATES,fy} from './invoice.js';
+import {docsHTML,mixed,STATES,fy} from './invoice.js';
+import {makeInvoicePdf,savePdf} from './invoicepdf.js';
 document.head.insertAdjacentHTML('beforeend',`<style>
 .seg{display:flex;background:#fff;border-radius:99px;padding:4px;gap:4px;margin:10px 0}
 .seg button{flex:1;min-height:42px;border:0;border-radius:99px;background:none;font:700 14px Hind,system-ui,sans-serif;color:var(--mute)}
@@ -15,11 +16,12 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 .bl-l{display:flex;justify-content:space-between;padding:6px 0}.bl-l.big{font-size:20px;border-top:1px solid var(--line);margin-top:4px}
 .bad{color:var(--bad)}.ok{color:var(--ok)}.mute{color:var(--mute);font-size:14px}
 .bl-msg{color:var(--bad);font-weight:600;margin-top:8px}
+.bl .bl-ng label{display:flex;align-items:center;gap:8px;margin:8px 0 0;color:var(--ink);font-size:14px}.bl .bl-ng input{width:22px;min-height:22px;padding:0}
 @media print{.top,nav,.noprint{display:none!important}body{background:#fff}.card{border:0}}
 </style>`);
 const num=v=>parseFloat(v)||0;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const blank=()=>({n:'',q:'',u:'',r:'',g:18,d:''});
+const blank=()=>({n:'',q:'',u:'',r:'',g:18,d:'',ng:false});
 let st=null,root=null;
 const shopSt=()=>db.shop.stateCode||'23';
 const inter=()=>st.state!==shopSt();
@@ -29,20 +31,21 @@ const per=(p,u)=>(p.units.find(x=>x.name===u)||{per:1}).per;
 function calc(){
  const gl=st.rows.map(x=>num(x.q)*num(x.r)),a=st.rows.map((x,i)=>gl[i]*(1-Math.min(num(x.d),100)/100));
  const s1=a.reduce((p,v)=>p+v,0),bd=Math.min(st.bt==='pct'?s1*num(st.bd)/100:num(st.bd),s1),k=s1>0?1-bd/s1:1,net=a.map(v=>v*k);
- let tax=0;if(st.type==='gst')net.forEach((v,i)=>tax+=v*num(st.rows[i].g)/100);
- const gross=gl.reduce((p,v)=>p+v,0),sub=net.reduce((p,v)=>p+v,0),raw=sub+tax,total=st.type==='gst'?Math.round(raw):raw,paid=Math.min(num(st.paid),total);
- return{gross,disc:gross-sub,sub,tax,total,paid,bal:total-paid,round:total-raw,net,gl};
+ const live=st.type==='gst'&&st.rows.some((x,i)=>!x.ng&&gl[i]>0);
+ let tax=0,ngAmt=0;if(st.type==='gst')net.forEach((v,i)=>{if(st.rows[i].ng)ngAmt+=v;else tax+=v*num(st.rows[i].g)/100});
+ const gross=gl.reduce((p,v)=>p+v,0),sub=net.reduce((p,v)=>p+v,0),raw=sub+tax,total=live?Math.round(raw):raw,paid=Math.min(num(st.paid),total);
+ return{gross,disc:gross-sub,sub,tax,total,paid,bal:total-paid,round:total-raw,net,gl,ngAmt,live};
 }
 const $=s=>root.querySelector(s);
 
-const rowH=(x,i)=>{const p=prod(x.n),f=`data-i="${i}" data-f`;return`<div class="bl-row"><input list="bl-p" ${f}="n" value="${esc(x.n)}" placeholder="Item (cement, sand, bricks…)" autocomplete="off"><div class="bl-3"><input ${f}="q" inputmode="decimal" value="${esc(x.q)}" placeholder="Qty">${p?`<select ${f}="u">${p.units.map(u=>`<option ${u.name===x.u?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:`<input ${f}="u" value="${esc(x.u)}" placeholder="Unit">`}<input ${f}="r" inputmode="decimal" value="${esc(x.r)}" placeholder="Rate ₹"></div><div class="bl-ft"><label>Disc %<input ${f}="d" inputmode="decimal" value="${esc(x.d||'')}"></label>${st.type==='gst'?`<label>GST %<input ${f}="g" inputmode="decimal" value="${x.g}"></label>`:'<span></span>'}<b id="bl-a${i}">${inr(num(x.q)*num(x.r)*(1-Math.min(num(x.d),100)/100))}</b><button type="button" data-rm="${i}" aria-label="Remove item">×</button></div></div>`};
+const rowH=(x,i)=>{const p=prod(x.n),f=`data-i="${i}" data-f`;return`<div class="bl-row"><input list="bl-p" ${f}="n" value="${esc(x.n)}" placeholder="Item (cement, sand, bricks…)" autocomplete="off"><div class="bl-3"><input ${f}="q" inputmode="decimal" value="${esc(x.q)}" placeholder="Qty">${p?`<select ${f}="u">${p.units.map(u=>`<option ${u.name===x.u?'selected':''}>${esc(u.name)}</option>`).join('')}</select>`:`<input ${f}="u" value="${esc(x.u)}" placeholder="Unit">`}<input ${f}="r" inputmode="decimal" value="${esc(x.r)}" placeholder="Rate ₹"></div><div class="bl-ft"><label>Disc %<input ${f}="d" inputmode="decimal" value="${esc(x.d||'')}"></label>${st.type==='gst'?(x.ng?'<span class="mute">No GST</span>':`<label>GST %<input ${f}="g" inputmode="decimal" value="${x.g}"></label>`):'<span></span>'}<b id="bl-a${i}">${inr(num(x.q)*num(x.r)*(1-Math.min(num(x.d),100)/100))}</b><button type="button" data-rm="${i}" aria-label="Remove item">×</button></div>${st.type==='gst'?`<div class="bl-ng"><label><input type="checkbox" ${f}="ng" ${x.ng?'checked':''}>Non-GST item (kachha bill only)</label></div>`:''}</div>`};
 const rowsH=()=>st.rows.map(rowH).join('');
-function lines(){const c=calc();$('#bl-lines').innerHTML=`<div class="bl-l"><span>Items total</span><b>${inr(c.gross)}</b></div>${c.disc>0.004?`<div class="bl-l"><span>Discount</span><b>- ${inr(c.disc)}</b></div>`:''}${st.type==='gst'?(inter()?`<div class="bl-l"><span>IGST</span><b>${inr(c.tax)}</b></div>`:`<div class="bl-l"><span>CGST</span><b>${inr(c.tax/2)}</b></div><div class="bl-l"><span>SGST</span><b>${inr(c.tax/2)}</b></div>`)+(Math.abs(c.round)>0.004?`<div class="bl-l"><span>Round off</span><b>${(c.round>=0?'+':'-')+Math.abs(Math.round(c.round*100)/100)}</b></div>`:''):''}<div class="bl-l big"><span>Total</span><b>${inr(c.total)}</b></div>`;$('#bl-bal').innerHTML=`<span>Balance (udhaar)</span><b class="${c.bal>0?'bad':'ok'}">${inr(c.bal)}</b>`}
+function lines(){const c=calc();$('#bl-lines').innerHTML=`<div class="bl-l"><span>Items total</span><b>${inr(c.gross)}</b></div>${c.disc>0.004?`<div class="bl-l"><span>Discount</span><b>- ${inr(c.disc)}</b></div>`:''}${st.type==='gst'&&c.ngAmt>0.004?`<div class="bl-l"><span>Non-GST items (not on GST invoice)</span><b>${inr(c.ngAmt)}</b></div>`:''}${st.type==='gst'?(inter()?`<div class="bl-l"><span>IGST</span><b>${inr(c.tax)}</b></div>`:`<div class="bl-l"><span>CGST</span><b>${inr(c.tax/2)}</b></div><div class="bl-l"><span>SGST</span><b>${inr(c.tax/2)}</b></div>`)+(Math.abs(c.round)>0.004?`<div class="bl-l"><span>Round off</span><b>${(c.round>=0?'+':'-')+Math.abs(Math.round(c.round*100)/100)}</b></div>`:''):''}<div class="bl-l big"><span>Total</span><b>${inr(c.total)}</b></div>`;$('#bl-bal').innerHTML=`<span>Balance (udhaar)</span><b class="${c.bal>0?'bad':'ok'}">${inr(c.bal)}</b>`}
 
 export function mountBilling(r){
  root=r;if(!st)fresh();const g=st.type==='gst';
  root.innerHTML=`<div class="bl"><h1>New bill</h1><a href="#/bills" class="mute">Past bills and invoices →</a><div class="seg"><button data-t="gst" class="${g?'on':''}">GST invoice</button><button data-t="kachha" class="${!g?'on':''}">Kachha bill</button></div>
- <p class="mute">${g?'GST is added on top of the rate. Use this for contractors who need a tax invoice.':'No GST. Use this for walk-in customers and estimates.'}</p>
+ <p class="mute">${g?'GST is added on top of the rate. Tick "Non-GST item" on items that have no GST: they stay off the GST invoice, and a kachha bill with all items is made too.':'No GST. Use this for walk-in customers and estimates.'}</p>
  <div class="card"><label>Customer</label><input id="bl-c" list="bl-cs" value="${esc(st.cust)}" placeholder="Name (empty for walk-in)" autocomplete="off"><label>Phone (optional)</label><input id="bl-ph" type="tel" inputmode="numeric" value="${esc(st.phone)}">
  ${g?`<label>Customer GSTIN</label><input id="bl-gi" value="${esc(st.gstin)}" placeholder="Optional for small buyers"><label>Customer address</label><input id="bl-ad" value="${esc(st.addr)}" placeholder="Needed for GST invoice"><label>Place of supply (state)</label><select id="bl-st">${STATES.map(([c,n])=>`<option value="${c}" ${c===st.state?'selected':''}>${n}</option>`).join('')}</select><label>Your shop GSTIN</label><input id="bl-sg" value="${esc(db.shop.gstin||'')}" placeholder="15-character GSTIN">`:''}</div>
  <h3 class="mute" style="margin:14px 4px 6px">Items</h3><div id="bl-rows">${rowsH()}</div><button class="btn ghost" id="bl-add" type="button">+ Add item</button>
@@ -58,13 +61,14 @@ export function mountBilling(r){
   else if(t.id==='bl-save')saveBill();
  };
  root.oninput=e=>{const t=e.target,d=t.dataset;
-  if(d.f){st.rows[d.i][d.f]=t.value;const a=$('#bl-a'+d.i);if(a)a.textContent=inr(num(st.rows[d.i].q)*num(st.rows[d.i].r)*(1-Math.min(num(st.rows[d.i].d),100)/100));lines()}
+  if(d.f&&d.f!=='ng'){st.rows[d.i][d.f]=t.value;const a=$('#bl-a'+d.i);if(a)a.textContent=inr(num(st.rows[d.i].q)*num(st.rows[d.i].r)*(1-Math.min(num(st.rows[d.i].d),100)/100));lines()}
   else if(t.id==='bl-c')st.cust=t.value;else if(t.id==='bl-ph')st.phone=t.value;else if(t.id==='bl-gi')st.gstin=t.value;else if(t.id==='bl-ad')st.addr=t.value;
   else if(t.id==='bl-sg'){db.shop.gstin=t.value.trim().toUpperCase();save()}
   else if(t.id==='bl-pd'){st.paid=t.value;lines()}else if(t.id==='bl-bd'){st.bd=t.value;lines()}
  };
  root.onchange=e=>{const t=e.target,d=t.dataset;
-  if(d.f==='n'){const x=st.rows[d.i],p=prod(x.n);if(p){x.u=x.u&&p.units.some(u=>u.name===x.u)?x.u:p.baseUnit;x.r=String(p.rate*per(p,x.u));x.g=p.taxable===false?0:p.gst;$('#bl-rows').innerHTML=rowsH();lines();const q=root.querySelector(`[data-i="${d.i}"][data-f="q"]`);if(q)q.focus()}}
+  if(d.f==='n'){const x=st.rows[d.i],p=prod(x.n);if(p){x.u=x.u&&p.units.some(u=>u.name===x.u)?x.u:p.baseUnit;x.r=String(p.rate*per(p,x.u));x.g=p.taxable===false?0:p.gst;x.ng=st.type==='gst'&&p.taxable===false;$('#bl-rows').innerHTML=rowsH();lines();const q=root.querySelector(`[data-i="${d.i}"][data-f="q"]`);if(q)q.focus()}}
+  else if(d.f==='ng'){const x=st.rows[d.i],p=prod(x.n);x.ng=t.checked;if(!x.ng&&!num(x.g))x.g=p&&p.gst?p.gst:18;$('#bl-rows').innerHTML=rowsH();lines()}
   else if(d.f==='u'){const x=st.rows[d.i],p=prod(x.n);if(p){x.r=String(p.rate*per(p,x.u));$('#bl-rows').innerHTML=rowsH();lines()}}
   else if(t.id==='bl-st'){st.state=t.value;lines()}
   else if(t.id==='bl-bt'){st.bt=t.value;lines()}
@@ -74,7 +78,7 @@ export function mountBilling(r){
 
 function saveBill(){
  const msg=t=>{$('#bl-msg').textContent=t};
- const c1=calc();const items=st.rows.map((x,i)=>({x,i})).filter(({x})=>x.n.trim()&&num(x.q)*num(x.r)>0).map(({x,i})=>{const p=prod(x.n);return{tx:c1.net[i],disc:c1.gl[i]-c1.net[i],d:num(x.d),pid:p?p.id:'',name:x.n.trim(),qty:num(x.q),unit:x.u||(p?p.baseUnit:'pcs'),rate:num(x.r),hsn:p?(p.hsn||''):'',gst:st.type==='gst'?num(x.g):0}});
+ const c1=calc();const items=st.rows.map((x,i)=>({x,i})).filter(({x})=>x.n.trim()&&num(x.q)*num(x.r)>0).map(({x,i})=>{const p=prod(x.n);return{tx:c1.net[i],disc:c1.gl[i]-c1.net[i],d:num(x.d),pid:p?p.id:'',name:x.n.trim(),qty:num(x.q),unit:x.u||(p?p.baseUnit:'pcs'),rate:num(x.r),hsn:p?(p.hsn||''):'',gst:st.type==='gst'&&!x.ng?num(x.g):0,ng:st.type==='gst'&&!!x.ng}});
  if(!items.length)return msg('Add at least one item with quantity and rate.');
  const c=calc(),name=st.cust.trim();
  const need={};items.forEach(it=>{const p=db.products.find(x=>x.id===it.pid);if(p)need[p.id]=(need[p.id]||0)+it.qty*per(p,it.unit)});
@@ -83,7 +87,7 @@ function saveBill(){
  let cu=name&&db.customers.find(x=>x.name.toLowerCase()===name.toLowerCase());
  if(name&&!cu){cu={id:uid(),name,phone:st.phone};db.customers.push(cu)}
  if(cu&&c.bal>0)cu.khata=true;
- const k=st.type;db.seq[k]=db.seq[k]||1;
+ const k=st.type==='gst'&&!items.some(i=>!i.ng)?'kachha':st.type;if(k!=='gst')items.forEach(i=>{i.ng=false;i.gst=0});db.seq[k]=db.seq[k]||1;
  const b={id:uid(),no:db.seq.bill++,inv:k==='gst'?'INV/'+fy()+'/'+String(db.seq['g'+fy()]=(db.seq['g'+fy()]||0)+1).padStart(4,'0'):'EST-'+String(db.seq[k]++).padStart(3,'0'),type:k,customerId:cu?cu.id:'',customerName:name||'Walk-in',phone:st.phone,gstin:st.gstin,items,gross:c.gross,disc:c.disc,sub:c.sub,tax:c.tax,total:c.total,paid:c.paid,round:c.round,addr:st.addr,state:st.state,inter:k==='gst'&&inter(),sup:{name:db.shop.name,addr:db.shop.addr||'',phone:db.shop.phone||'',gstin:db.shop.gstin||'',state:shopSt()},date:Date.now()};
  items.forEach(it=>{const p=db.products.find(x=>x.id===it.pid);if(p)p.stock-=it.qty*per(p,it.unit)});
  if(c.bal>0)db.ledger.push({id:uid(),customerId:cu.id,billId:b.id,type:'credit',amount:c.bal,date:b.date});
@@ -92,14 +96,17 @@ function saveBill(){
 
 function preview(b){
  const g=b.type==='gst',d=new Date(b.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}),bal=Math.max(b.total-b.paid,0);
- const txt=[b.sup.name,(g?'Tax invoice ':'Estimate ')+b.inv+', '+d,b.customerName,'',...b.items.map(i=>`${i.name}: ${i.qty} ${i.unit} x ${i.rate}`),'',`Total: ${inr(b.total)}`,`Paid: ${inr(b.paid)}`,bal?`Due: ${inr(bal)}`:'Paid in full'].join('\n');
+ const txt=[b.sup.name,(g?(mixed(b)?'Bill ':'Tax invoice '):'Estimate ')+b.inv+', '+d,b.customerName,'',...b.items.map(i=>`${i.name}: ${i.qty} ${i.unit} x ${i.rate}`),'',`Total: ${inr(b.total)}`,`Paid: ${inr(b.paid)}`,bal?`Due: ${inr(bal)}`:'Paid in full'].join('\n');
  const ph=(b.phone||'').replace(/\D/g,''),wa=`https://wa.me/${ph.length===10?'91'+ph:ph}?text=${encodeURIComponent(txt)}`;
- root.innerHTML=`<div class="bl">${invoiceHTML(b)}<div class="noprint"><a class="btn ghost" style="margin-top:10px" target="_blank" rel="noopener" href="${wa}">Share on WhatsApp</a><button class="btn ghost" id="bl-pr" type="button">Print</button><button class="btn dark" id="bl-new" type="button">New bill</button></div></div>`;
+ const mx=mixed(b);
+ root.innerHTML=`<div class="bl">${docsHTML(b)}<div class="noprint">${mx?'<button class="btn dark" id="bl-p1" type="button" style="margin-top:10px">Download GST invoice PDF</button><button class="btn dark" id="bl-p2" type="button">Download kachha bill PDF</button>':''}<a class="btn ghost" style="margin-top:10px" target="_blank" rel="noopener" href="${wa}">Share on WhatsApp</a><button class="btn ghost" id="bl-pr" type="button">Print</button><button class="btn dark" id="bl-new" type="button">New bill</button><div class="bl-msg" id="bl-pm"></div></div></div>`;
+ const dl=async(id,part)=>{const m=$('#bl-pm');m.style.color='var(--ok)';m.textContent='Making the PDF…';try{await savePdf(await makeInvoicePdf(b,part));m.textContent='PDF created.'}catch(x){m.style.color='var(--bad)';m.textContent=x.message==='offline'?'Could not load the PDF tool. Check your internet and try again.':'The PDF was not saved.'}};
+ if(mx){$('#bl-p1').onclick=()=>dl('p1','inv');$('#bl-p2').onclick=()=>dl('p2','memo')}
  $('#bl-pr').onclick=()=>window.print();
  $('#bl-new').onclick=()=>{fresh();mountBilling(root)};
 }
 
 export function editBill(b){
  st={type:b.type,cust:b.customerName==='Walk-in'?'':b.customerName,phone:b.phone||'',gstin:b.gstin||'',addr:b.addr||'',state:b.state||shopSt(),paid:String(b.paid||''),bd:'',bt:'amt',
-  rows:b.items.map(i=>{const gr=i.qty*i.rate,d=i.tx!==undefined&&gr>0?Math.round((1-i.tx/gr)*1e6)/1e4:0;return{n:i.name,q:String(i.qty),u:i.unit,r:String(i.rate),g:i.gst||0,d:d?String(d):''}})};
+  rows:b.items.map(i=>{const gr=i.qty*i.rate,d=i.tx!==undefined&&gr>0?Math.round((1-i.tx/gr)*1e6)/1e4:0;return{n:i.name,q:String(i.qty),u:i.unit,r:String(i.rate),g:i.gst||0,d:d?String(d):'',ng:!!i.ng}})};
 }
