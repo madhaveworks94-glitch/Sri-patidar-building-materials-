@@ -1,5 +1,5 @@
 import {db,save,inr,dateFmt} from './store.js';
-import {invoiceHTML} from './invoice.js';
+import {docsHTML,mixed} from './invoice.js';
 import {editBill} from './billing.js';
 import {makeInvoicePdf,savePdf} from './invoicepdf.js';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -25,13 +25,13 @@ function list(){
 function detail(){
  const b=all().find(x=>x.id===sel);if(!b){sel=null;return list()}
  const ph=(b.phone||'').replace(/\D/g,''),bal=due(b);
- const txt=[b.sup?b.sup.name:db.shop.name,(b.type==='gst'?'Tax invoice ':'Estimate ')+b.inv+', '+dateFmt(b.date),b.customerName,'',...b.items.map(i=>`${i.name}: ${i.qty} ${i.unit} x ${i.rate}`),'',`Total: ${inr(b.total)}`,bal?`Due: ${inr(bal)}`:'Paid in full'].join('\n');
- root.innerHTML=`<div class="bl"><button class="link" id="d-back" style="margin:0 0 8px">← All bills</button>${b.cancelled?`<div class="card" style="margin-bottom:10px"><b class="bad">Cancelled on ${dateFmt(b.cancelledAt)}</b><br><small class="mute">Stock was returned. Any money already received on this bill should be refunded or adjusted by you.</small></div>`:''}${invoiceHTML(b)}
- <div class="noprint"><button class="btn dark" id="d-pdf" type="button" style="margin-top:10px">Download invoice as PDF</button><a class="btn ghost" style="margin-top:8px" target="_blank" rel="noopener" href="https://wa.me/${ph.length===10?'91'+ph:ph}?text=${encodeURIComponent(txt)}">Share on WhatsApp</a>
+ const txt=[b.sup?b.sup.name:db.shop.name,(b.type==='gst'?(mixed(b)?'Bill ':'Tax invoice '):'Estimate ')+b.inv+', '+dateFmt(b.date),b.customerName,'',...b.items.map(i=>`${i.name}: ${i.qty} ${i.unit} x ${i.rate}`),'',`Total: ${inr(b.total)}`,bal?`Due: ${inr(bal)}`:'Paid in full'].join('\n');
+ root.innerHTML=`<div class="bl"><button class="link" id="d-back" style="margin:0 0 8px">← All bills</button>${b.cancelled?`<div class="card" style="margin-bottom:10px"><b class="bad">Cancelled on ${dateFmt(b.cancelledAt)}</b><br><small class="mute">Stock was returned. Any money already received on this bill should be refunded or adjusted by you.</small></div>`:''}${docsHTML(b)}
+ <div class="noprint">${mixed(b)?'<button class="btn dark" id="d-pdf" type="button" style="margin-top:10px">Download GST invoice PDF</button><button class="btn dark" id="d-pdf2" type="button">Download kachha bill PDF</button>':'<button class="btn dark" id="d-pdf" type="button" style="margin-top:10px">Download invoice as PDF</button>'}<a class="btn ghost" style="margin-top:8px" target="_blank" rel="noopener" href="https://wa.me/${ph.length===10?'91'+ph:ph}?text=${encodeURIComponent(txt)}">Share on WhatsApp</a>
  ${b.cancelled?'':'<button class="btn ghost" id="d-edit" type="button">Edit this bill</button><button class="btn ghost" id="d-cx" type="button">Cancel this bill</button>'}<div class="bl-msg" id="d-msg" style="color:var(--ok)">${esc(msg)}</div></div></div>`;
  root.onclick=async e=>{const t=e.target;
   if(t.id==='d-back'){sel=null;list()}
-  else if(t.id==='d-pdf'){$('#d-msg').textContent='Making the PDF…';try{await savePdf(await makeInvoicePdf(b));msg='PDF created.'}catch(x){msg=x.message==='offline'?'Could not load the PDF tool. Check your internet and try again.':'The PDF was not saved.'}detail()}
+  else if(t.id==='d-pdf'||t.id==='d-pdf2'){$('#d-msg').textContent='Making the PDF…';try{await savePdf(await makeInvoicePdf(b,t.id==='d-pdf2'?'memo':'inv'));msg='PDF created.'}catch(x){msg=x.message==='offline'?'Could not load the PDF tool. Check your internet and try again.':'The PDF was not saved.'}detail()}
   else if(t.id==='d-cx'){if(t.dataset.a){cancelBill(b);msg='Bill cancelled. Stock returned.';detail()}else{t.dataset.a=1;t.textContent='Tap again to cancel this bill'}}
   else if(t.id==='d-edit'){if(t.dataset.a){const copy=JSON.parse(JSON.stringify(b));cancelBill(b);editBill(copy);location.hash='#/billing'}else{t.dataset.a=1;t.textContent='Tap again: this cancels it and opens a new bill'}}
  };
