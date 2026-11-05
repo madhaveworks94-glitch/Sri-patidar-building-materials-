@@ -29,13 +29,14 @@ function form(){
  root.innerHTML=`<div class="bl"><h1>${n?'Add item':'Edit item'}</h1><div class="card">${f('f-n','Item name',p.name,'Cement (PPC)')}${f('f-b','Smallest unit (what you count)',p.baseUnit,'bag, kg, pcs, cft')}
  <label style="margin-top:14px">Bigger units (optional)</label><p class="mute" style="margin:0">Example: 1 ton = 20 bags. Name the unit, then say how many smallest units it holds.</p>
  <div class="bl-3" style="grid-template-columns:1fr 1fr"><input id="f-u1" value="${esc(ex[0]?ex[0].name:'')}" placeholder="Unit, like ton"><input id="f-p1" inputmode="decimal" value="${ex[0]?ex[0].per:''}" placeholder="Holds how many"><input id="f-u2" value="${esc(ex[1]?ex[1].name:'')}" placeholder="Another unit"><input id="f-p2" inputmode="decimal" value="${ex[1]?ex[1].per:''}" placeholder="Holds how many"></div>
- ${f('f-r','Selling rate per smallest unit (₹)',p.rate,'395',1)}${f('f-g','GST %',p.gst,'18',1)}<label>Charge GST on this item?</label><select id="f-t"><option value="1" ${p.taxable===false?'':'selected'}>Yes, on GST bills</option><option value="0" ${p.taxable===false?'selected':''}>No, never add GST</option></select><p class="mute" style="margin:6px 0 0">Choose No only if this item is exempt from GST. If you are not sure, ask your accountant.</p>${f('f-h','HSN code (for GST invoices)',p.hsn,'2523')}${f('f-l','Low stock alert at (smallest units)',p.low,'50',1)}${n?f('f-s','Opening stock (smallest units)','','0',1):''}
+ ${f('f-r','Selling rate per smallest unit (₹)',p.rate,'395',1)}<label>Charge GST on this item?</label><select id="f-t"><option value="1" ${p.taxable===false?'':'selected'}>Yes, goes on GST invoice</option><option value="0" ${p.taxable===false?'selected':''}>No, goes on kachha bill</option></select><div id="f-gw" style="${p.taxable===false?'display:none':''}">${f('f-g','GST %',p.gst,'18',1)}${f('f-h','HSN code (for GST invoice)',p.hsn,'2523')}</div>${f('f-l','Low stock alert at (smallest units)',p.low,'50',1)}${n?f('f-s','Opening stock (smallest units)','','0',1):''}
  <div class="bl-msg" id="f-m"></div><button class="btn dark" id="f-save" type="button">Save item</button><button class="btn ghost" id="f-x" type="button">Cancel</button></div></div>`;
+ root.onchange=e=>{if(e.target.id==='f-t'){const w=$('#f-gw');if(w)w.style.display=e.target.value==='1'?'':'none'}};
  root.onclick=e=>{const t=e.target;
   if(t.id==='f-x'){edit=null;render()}
   else if(t.id==='f-save'){const name=$('#f-n').value.trim(),b=$('#f-b').value.trim();if(!name||!b)return $('#f-m').textContent='Enter the item name and its smallest unit.';
    const units=[{name:b,per:1}];[1,2].forEach(i=>{const u=$('#f-u'+i).value.trim(),k=num($('#f-p'+i).value);if(u&&k>0&&!units.some(x=>x.name===u))units.push({name:u,per:k})});
-   const d={name,baseUnit:b,units,rate:num($('#f-r').value),gst:num($('#f-g').value),taxable:$('#f-t').value==='1',hsn:$('#f-h').value.trim(),low:num($('#f-l').value)};
+   const tx=$('#f-t').value==='1',d={name,baseUnit:b,units,rate:num($('#f-r').value),gst:tx?num($('#f-g').value):0,taxable:tx,hsn:tx?$('#f-h').value.trim():'',low:num($('#f-l').value)};
    if(n){const np={id:uid(),stock:num($('#f-s').value),cost:0,...d};db.products.push(np);if(np.stock>0)note(np,np.stock,'in','Opening stock');sel=np.id}else Object.assign(p,d);
    save();edit=null;msg='Saved.';render()}};
 }
@@ -52,10 +53,10 @@ function detail(){
   if(t.id==='d-back'){sel=null;msg='';list()}
   else if(t.id==='d-edit'){edit=p.id;render()}
   else if(t.id==='d-del'){if(t.dataset.a){db.products=db.products.filter(x=>x!==p);save();sel=null;list()}else{t.dataset.a=1;t.textContent='Tap again to delete'}}
-  else if(t.id==='d-in')$('#d-panel').innerHTML=`<label>Quantity received</label><input id="i-q" inputmode="decimal"><label>Unit</label><select id="i-u">${p.units.map(u=>`<option>${esc(u.name)}</option>`).join('')}</select><label>Buying price per unit (₹, optional)</label><input id="i-c" inputmode="decimal"><label>Note (supplier, optional)</label><input id="i-n"><button class="btn dark" id="i-s" type="button">Save stock</button>`;
+  else if(t.id==='d-in'){$('#d-panel').innerHTML=`<label>Quantity received</label><input id="i-q" inputmode="decimal"><label>Unit</label><select id="i-u">${p.units.map(u=>`<option>${esc(u.name)}</option>`).join('')}</select><label>Buying price per unit (₹)</label><input id="i-c" inputmode="decimal"><label>Selling price per unit (₹)</label><input id="i-r" inputmode="decimal" value="${fmt(p.rate*per(p,p.units[0].name))}"><button class="btn dark" id="i-s" type="button">Save stock</button>`;root.onchange=ev=>{if(ev.target.id==='i-u')$('#i-r').value=fmt(p.rate*per(p,ev.target.value))}}
   else if(t.id==='i-s'){const u=$('#i-u').value,q=num($('#i-q').value)*per(p,u);if(q<=0){msg='';return $('#d-panel').insertAdjacentHTML('beforeend','<div class="bl-msg">Enter a quantity.</div>')}
    const c=num($('#i-c').value)/per(p,u),old=Math.max(p.stock,0);if(c>0)p.cost=old+q>0?(old*(p.cost||0)+q*c)/(old+q):c;
-   p.stock+=q;note(p,q,'in',$('#i-n').value.trim(),c);save();msg='Added '+fmt(q)+' '+p.baseUnit+'.';detail()}
+   const r=num($('#i-r').value)/per(p,u);if(r>0)p.rate=r;p.stock+=q;note(p,q,'in','',c);save();msg='Added '+fmt(q)+' '+p.baseUnit+'.';detail()}
   else if(t.id==='d-adj')$('#d-panel').innerHTML=`<label>Actual count now (${esc(p.baseUnit)})</label><input id="a-q" inputmode="decimal" value="${fmt(p.stock)}"><label>Reason (optional)</label><input id="a-n" placeholder="Damaged, counted, returned"><button class="btn dark" id="a-s" type="button">Save count</button>`;
   else if(t.id==='a-s'){const v=num($('#a-q').value),d=v-p.stock;if(d!==0){p.stock=v;note(p,d,'adjust',$('#a-n').value.trim());save()}msg='Stock updated.';detail()}
  };
