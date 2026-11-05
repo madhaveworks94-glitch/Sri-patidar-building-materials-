@@ -12,10 +12,11 @@ import {initLang} from './lang.js';
 import {auto} from './clean.js';
 import {mountSpend} from './spend.js';
 import {mountDocs} from './docs.js';
+import {initWheel,syncWheel} from './wheel.js';
 const $=s=>document.querySelector(s);
-const P={home:'M3 11l9-8 9 8v10h-6v-6H9v6H3z',receipt:'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',book:'M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3zM5 17a3 3 0 013-3h11',box:'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',truck:'M2 6h11v10H2zM13 10h5l3 3v3h-8zM6 19h.01M17 19h.01',chart:'M4 20V10M10 20V4M16 20v-7M22 20H2',doc:'M7 3h8l4 4v14H7zM15 3v4h4M10 12h6M10 16h6'};
+const P={home:'M3 11l9-8 9 8v10h-6v-6H9v6H3z',receipt:'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',book:'M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3zM5 17a3 3 0 013-3h11',box:'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',truck:'M2 6h11v10H2zM13 10h5l3 3v3h-8zM6 19h.01M17 19h.01',chart:'M4 20V10M10 20V4M16 20v-7M22 20H2',doc:'M7 3h8l4 4v14H7zM15 3v4h4M10 12h6M10 16h6',wallet:'M3 7h16a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2zM3 7l3-3h11M16 14h2',save:'M12 4v11M7 11l5 5 5-5M5 20h14'};
 const ic=n=>`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${P[n]}"/></svg>`;
-const NAV=[['overview','Overview','home'],['billing','Billing','receipt'],['khata','Khata','book'],['stock','Inventory','box'],['fleet','Fleet','truck'],['reports','Reports','chart'],['docs','Docs','doc']];
+const NAV=[['overview','Overview','home'],['billing','Billing','receipt'],['khata','Khata','book'],['stock','Inventory','box'],['fleet','Fleet','truck'],['reports','Reports','chart'],['docs','Docs','doc'],['spend','Ledger','wallet'],['backup','Backup','save']];
 const STEP={billing:'Step 2: GST / Kachha billing',khata:'Step 3: Khata ledger',stock:'Step 4: Multi-unit inventory and PDF import',fleet:'Step 5: Fleet and trips',reports:'Step 6: Analytics'};
 
 const sod=t=>{const d=new Date(t);d.setHours(0,0,0,0);return d.getTime()};
@@ -49,11 +50,12 @@ function overview(){
 
 function render(){
  if(!gate(render))return;
- const r0=(location.hash.replace('#/','')||'overview'),r=allowed(r0)?r0:'billing',k=NAV.find(n=>n[0]===r)?r:['backup','gst','bills','spend'].includes(r)?r:'overview';
+ const r0=(location.hash.replace('#/','')||'overview'),r=allowed(r0)?r0:'billing',k=NAV.find(n=>n[0]===r)?r:['gst','bills'].includes(r)?r:'overview';
  $('#nav').innerHTML=NAV.filter(n=>allowed(n[0])).map(([id,l,i])=>`<a href="#/${id}" class="${id===k?'on':''}">${ic(i)}<span>${l}</span></a>`).join('');
+ syncWheel(NAV.filter(n=>n[0]!=='overview'&&allowed(n[0])).map(([id,l,i])=>({id,label:l,svg:ic(i)})),{gst:'docs',bills:'docs'}[k]||k,k==='overview');
  $('#shopname').textContent=db.shop.name;$('#me').textContent=(who()||db.shop.owner)[0].toUpperCase();$('#nav').style.gridTemplateColumns='repeat('+NAV.filter(n=>allowed(n[0])).length+',1fr)';$('#me').onclick=()=>{location.hash='#/backup'};
  if(k==='billing')mountBilling($('#view'));else if(k==='khata')mountKhata($('#view'));else if(k==='stock')mountStock($('#view'));else if(k==='fleet')mountFleet($('#view'));else if(k==='reports')mountReports($('#view'));else if(k==='backup')mountBackup($('#view'));else if(k==='gst')mountGst($('#view'));else if(k==='bills')mountBills($('#view'));else if(k==='docs')mountDocs($('#view'));else if(k==='spend')mountSpend($('#view'));else $('#view').innerHTML=k==='overview'?overview():`<h1>${NAV.find(n=>n[0]===k)[1]}</h1><div class="card soon"><b>${STEP[k]}</b><p class="sub">Coming in the next step.</p></div>`;
  if($('#seed'))$('#seed').onclick=()=>{seed();render()};
  if($('#clear'))$('#clear').onclick=e=>{if(e.target.dataset.a){clearAll();render()}else{e.target.dataset.a=1;e.target.textContent='Tap again to delete everything'}};
 }
-auto();addEventListener('hashchange',render);render();initAuth();initLang();
+auto();addEventListener('hashchange',render);initWheel(ic('home'));render();initAuth();initLang();
