@@ -3,6 +3,7 @@ import {tools} from './gstpdf.js';
 import {savePdf} from './invoicepdf.js';
 const f2=n=>Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const dmy=t=>{const x=new Date(t);return String(x.getDate()).padStart(2,'0')+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+x.getFullYear()};
+document.head.insertAdjacentHTML('beforeend','<style>a.kh{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;margin-bottom:10px;color:inherit}</style>');
 let root,msg='';
 export function events(){
  const al=db.ledger.filter(l=>l.type==='payment').flatMap(l=>l.allocs||[]),ev=[];
