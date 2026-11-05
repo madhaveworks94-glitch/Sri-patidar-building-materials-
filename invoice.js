@@ -14,6 +14,8 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 .inv-tt div{display:flex;justify-content:space-between;padding:3px 0}
 .inv-tt .g{border-top:2px solid #111;font-size:16px;font-weight:700;margin-top:4px;padding-top:6px}
 .inv-sig{display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px;gap:12px}
+.inv-brk{height:18px}
+@media print{.inv-brk{height:0;break-after:page}}
 </style>`);
 const STATES=('01 Jammu and Kashmir,02 Himachal Pradesh,03 Punjab,04 Chandigarh,05 Uttarakhand,06 Haryana,07 Delhi,08 Rajasthan,09 Uttar Pradesh,10 Bihar,11 Sikkim,12 Arunachal Pradesh,13 Nagaland,14 Manipur,15 Mizoram,16 Tripura,17 Meghalaya,18 Assam,19 West Bengal,20 Jharkhand,21 Odisha,22 Chhattisgarh,23 Madhya Pradesh,24 Gujarat,26 Dadra and Nagar Haveli and Daman and Diu,27 Maharashtra,29 Karnataka,30 Goa,31 Lakshadweep,32 Kerala,33 Tamil Nadu,34 Puducherry,35 Andaman and Nicobar Islands,36 Telangana,37 Andhra Pradesh,38 Ladakh').split(',').map(s=>[s.slice(0,2),s.slice(3)]);
 export {STATES};
@@ -29,16 +31,35 @@ export function words(n){n=Math.round(n*100)/100;const r=Math.floor(n),p=Math.ro
  if(cr)s+=three(cr)+' Crore ';if(lk)s+=two(lk)+' Lakh ';if(th)s+=two(th)+' Thousand ';if(rest)s+=three(rest)+' ';
  return 'Rupees '+(s.trim()||'Zero')+(p?' and '+two(p)+' Paise':'')+' Only';}
 
+const gx=i=>i.tx!==undefined?i.tx:i.qty*i.rate;
+// A GST bill can hold GST items and non-GST items (ng). The GST invoice shows only the GST items.
+export const mixed=b=>b.type==='gst'&&!b.isCN&&b.items.some(i=>i.ng);
+export function gstView(b){
+ const it=b.items.filter(i=>!i.ng);
+ if(it.length===b.items.length)return b;
+ if(!it.length)return null;
+ const tx=it.reduce((s,i)=>s+gx(i),0),tax=it.reduce((s,i)=>s+gx(i)*(i.gst||0)/100,0),gross=it.reduce((s,i)=>s+i.qty*i.rate,0),raw=tx+tax,total=Math.round(raw);
+ return{...b,items:it,gross,disc:gross-tx,sub:tx,tax,round:total-raw,total,noPay:true};
+}
+export function parts(b){
+ if(!mixed(b))return{inv:b,memo:null};
+ return{inv:gstView(b),memo:{...b,type:'kachha',memoGst:true}};
+}
+export function docsHTML(b){
+ const p=parts(b);
+ if(!p.memo)return invoiceHTML(b);
+ return'<p class="mute noprint" style="margin:0 0 8px">This bill has GST and non-GST items, so it makes 2 documents: the GST invoice (GST items only) and the kachha bill (all items).</p>'+(p.inv?invoiceHTML(p.inv)+'<div class="inv-brk"></div>':'')+invoiceHTML(p.memo);
+}
 export function invoiceHTML(b){
  const g=b.type==='gst',sup=b.sup||{name:'',addr:'',gstin:'',state:''},d=new Date(b.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
  const L=b.items.map(i=>{const tx=i.tx!==undefined?i.tx:i.qty*i.rate,tax=tx*(i.gst||0)/100;return{...i,tx,tax,tot:tx+tax,gr:i.qty*i.rate}});
  const sumTx=L.reduce((s,x)=>s+x.tx,0),sumTax=L.reduce((s,x)=>s+x.tax,0),bal=Math.max(b.total-b.paid,0);
  const head=`<div class="inv-h"><b class="inv-n">${esc(sup.name)}</b><br>${esc(sup.addr)}${sup.phone?'<br>Phone: '+esc(sup.phone):''}${g?`<br><b>GSTIN: ${esc(sup.gstin||'Not set')}</b><br>State: ${esc(sn(sup.state))}`:''}</div>`;
- const pay=b.isCN?'':`<div class="inv-tt"><div><span>Paid</span><span>${f2(b.paid)}</span></div><div><span>Balance due</span><b>${f2(bal)}</b></div></div>`;
+ const pay=b.isCN||b.noPay?'':`<div class="inv-tt"><div><span>Paid</span><span>${f2(b.paid)}</span></div><div><span>Balance due</span><b>${f2(bal)}</b></div></div>`;
  if(!g)return`<div class="inv"><div class="inv-t"><b>${b.isCN?'RETURN NOTE':'CASH MEMO / ESTIMATE'}</b><span class="m">${esc(b.inv)}</span></div>${head}
  <div class="inv-2"><div>Date: <b>${d}</b></div><div>To: <b>${esc(b.customerName)}</b>${b.phone?'<br>'+esc(b.phone):''}</div></div>
- <div class="inv-sc"><table><tr><th>#</th><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th></tr>${L.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.name)}</td><td class="r">${x.qty} ${esc(x.unit)}</td><td class="r">${f2(x.rate)}</td><td class="r">${f2(x.tx)}</td></tr>`).join('')}</table></div>
- <div class="inv-tt">${b.disc>0.004?`<div><span>Items total</span><span>${f2(b.gross)}</span></div><div><span>Discount</span><span>- ${f2(b.disc)}</span></div>`:''}<div class="g"><span>Total</span><span>${f2(b.total)}</span></div></div>${pay}<p class="m" style="margin-top:10px">This is an estimate and not a tax invoice. Thank you for your business.</p></div>`;
+ <div class="inv-sc"><table><tr><th>#</th><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th></tr>${L.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.name)}${b.memoGst&&x.gst&&!x.ng?` <span class="m">+GST ${x.gst}%</span>`:''}</td><td class="r">${x.qty} ${esc(x.unit)}</td><td class="r">${f2(x.rate)}</td><td class="r">${f2(x.tx)}</td></tr>`).join('')}</table></div>
+ <div class="inv-tt">${b.disc>0.004||b.memoGst?`<div><span>Items total</span><span>${f2(b.gross)}</span></div>`:''}${b.disc>0.004?`<div><span>Discount</span><span>- ${f2(b.disc)}</span></div>`:''}${b.memoGst?`<div><span>GST (on GST items)</span><span>${f2(b.tax)}</span></div>${Math.abs(b.round||0)>0.004?`<div><span>Round off</span><span>${f2(b.round)}</span></div>`:''}`:''}<div class="g"><span>Total</span><span>${f2(b.total)}</span></div></div>${pay}<p class="m" style="margin-top:10px">This is an estimate and not a tax invoice. Thank you for your business.</p></div>`;
  const split=!b.inter;
  return`<div class="inv"><div class="inv-t"><b>${b.isCN?'CREDIT NOTE':'TAX INVOICE'}</b><span class="m">Original for Recipient</span></div>${head}
  <div class="inv-2"><div>${b.isCN?'Credit note no':'Invoice No'}: <b>${esc(b.inv)}</b><br>Date: <b>${d}</b>${b.isCN?'<br>Against invoice: '+esc(b.billInv)+' dated '+new Date(b.billDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'<br>Reverse charge: No'}</div><div>Place of supply:<br><b>${esc(sn(b.state))}</b></div></div>
