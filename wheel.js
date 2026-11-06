@@ -11,12 +11,12 @@ document.head.insertAdjacentHTML('beforeend',`<style>
  #wheel.kb{display:none}
  .wh-v{position:absolute;left:${HOMEW}px;right:0;top:0;height:${BAR}px;overflow:hidden}
  .wh-c{position:absolute;left:50%;top:0;width:0;height:0}
- .wh-b{position:absolute;margin:0;padding:0;border:0;background:var(--card);color:var(--ink);width:${ITEM}px;height:${ITEM}px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font:600 10px/1.1 Hind,system-ui,sans-serif;cursor:pointer}
- .wh-b svg{width:22px;height:22px}
- .wh-i{left:-${ITEM/2}px;top:9px;transition:transform .28s ease,opacity .28s ease,background .2s}
+ .wh-b{position:absolute;margin:0;padding:0;border:0;background:var(--card);color:var(--ink);width:var(--s,${ITEM}px);height:var(--s,${ITEM}px);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-family:Hind,system-ui,sans-serif;font-weight:600;font-size:var(--f,10px);line-height:1.1;cursor:pointer;white-space:nowrap}
+ .wh-b svg{width:calc(var(--s,${ITEM}px)*.42);height:calc(var(--s,${ITEM}px)*.42)}
+ .wh-i{left:calc(var(--s,${ITEM}px)/-2);top:calc((${BAR}px - var(--s,${ITEM}px))/2);transition:transform .28s ease,opacity .28s ease,background .2s}
  .wh-i.on{background:var(--or);color:#fff}
  #wheel.drag .wh-i{transition:none}
- .wh-h{left:8px;top:9px;background:var(--ink);color:#fff}
+ .wh-h{left:8px;top:calc((${BAR}px - var(--s,${ITEM}px))/2);background:var(--ink);color:#fff}
  .wh-h.on{background:var(--or)}
  .wh-l{position:absolute;left:${HOMEW-2}px;top:16px;height:${BAR-32}px;width:1px;background:var(--line)}
 }
@@ -24,11 +24,12 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 </style>`);
 let el,view,ring,hub,items=[],pos=0,active='',key='',go=()=>{},down=null;
 const clamp=v=>Math.max(0,Math.min(Math.max(items.length-1,0),v));
-const sp=()=>Math.max(52,Math.min(64,(view.clientWidth||300)/5));
+const sp=()=>Math.max(54,Math.min(64,(view.clientWidth||300)/5));
 function place(){
  if(!ring)return;
+ const S=sp(),sz=Math.min(ITEM,S-8);el.style.setProperty('--s',sz.toFixed(1)+'px');el.style.setProperty('--f',(sz*.19).toFixed(1)+'px');
  ring.querySelectorAll('.wh-i').forEach((b,i)=>{
-  const d=i-pos,a=Math.abs(d),near=Math.max(0,1-a),op=a<=2?1:Math.max(0,1-(a-2)*1.6),dy=-5*near+Math.min(d*d*2,6),s=1+.12*near;
+  const d=i-pos,a=Math.abs(d),near=Math.max(0,1-a),op=a<=2?1:Math.max(0,1-(a-2)*1.6),dy=-5*near+Math.min(d*d*2,6),s=1+.08*near;
   b.style.transform=`translate(${(d*sp()).toFixed(1)}px,${dy.toFixed(1)}px) scale(${s.toFixed(3)})`;
   b.style.opacity=op;b.style.pointerEvents=op<.3?'none':'auto';
   b.classList.toggle('on',items[i].id===active);
