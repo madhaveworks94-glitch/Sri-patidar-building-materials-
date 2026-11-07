@@ -22,13 +22,210 @@ jobs:
       - name: Collect web files
         run: |
           mkdir www
-                  cp index.html styles.css *.js manifest.webmanifest icon-192.png icon-512.png www/
+          cp index.html styles.css *.js manifest.webmanifest icon-192.png icon-512.png www/
       - run: npm install
+      - name: Bundle the sharing library
+        run: cp node_modules/peerjs/dist/peerjs.min.js www/
       - run: npx cap add android
       - run: pip install pillow || pip install --break-system-packages pillow
       - run: python3 make_icons.py
       - run: npx cap sync android
-      - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
+      - name: Save the original Android files
+        run: |
+          cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.orig
+          MA=$(find android/app/src/main/java -name MainActivity.java | head -1)
+          echo "$MA" > /tmp/ma_path
+          cp "$MA" /tmp/MainActivity.orig
+          echo "Saved originals. MainActivity: $MA"
+      - name: Allow network checks (phone-to-phone sharing needs this)
+        run: |
+          export MODE=net
+          python3 - <<'PY'
+          import os
+          p='android/app/src/main/AndroidManifest.xml'
+          s=open(p,encoding='utf-8').read()
+          mode=os.environ['MODE']
+          perms=['android.permission.ACCESS_NETWORK_STATE'] if mode=='net' else ['android.permission.FOREGROUND_SERVICE','android.permission.FOREGROUND_SERVICE_DATA_SYNC','android.permission.POST_NOTIFICATIONS','android.permission.WAKE_LOCK']
+          add=['    <uses-permission android:name="%s" />'%x for x in perms if x not in s]
+          assert '<application' in s and '</application>' in s
+          if add:
+              s=s.replace('<application','\n'.join(add)+'\n    <application',1)
+          if mode=='svc' and 'KeepAliveService' not in s:
+              s=s.replace('</application>','        <service android:name=".KeepAliveService" android:exported="false" android:foregroundServiceType="dataSync" />\n    </application>',1)
+          open(p,'w',encoding='utf-8').write(s)
+          print('Manifest updated for',mode)
+          PY
+      - name: Save the Android files before the service
+        run: |
+          cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.pre
+          cp "$(cat /tmp/ma_path)" /tmp/MainActivity.pre
+      - name: Add the background sharing service (optional)
+        continue-on-error: true
+        run: |
+          set -e
+          MA=$(cat /tmp/ma_path); DIR=$(dirname "$MA")
+          PKG=$(grep -m1 '^package ' "$MA" | sed -E 's/^package ([^;]+);.*/\1/')
+          echo "Package: $PKG"
+          cat > "$DIR/KeepAliveService.java" <<EOF
+          package $PKG;
+
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.app.Service;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.pm.ServiceInfo;
+          import android.os.Build;
+          import android.os.IBinder;
+          import android.os.PowerManager;
+
+          public class KeepAliveService extends Service {
+              private static final String CH = "dukaan_share";
+              private PowerManager.WakeLock wl;
+
+              @Override
+              public IBinder onBind(Intent intent) {
+                  return null;
+              }
+
+              @Override
+              public int onStartCommand(Intent intent, int flags, int startId) {
+                  NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                  if (Build.VERSION.SDK_INT >= 26) {
+                      nm.createNotificationChannel(new NotificationChannel(CH, "Sharing with staff phones", NotificationManager.IMPORTANCE_LOW));
+                  }
+                  Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                  PendingIntent pi = PendingIntent.getActivity(this, 0, open, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+                  Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CH) : new Notification.Builder(this);
+                  b.setContentTitle("Dukaan OS").setContentText("Sharing data with staff phones").setSmallIcon(android.R.drawable.stat_notify_sync).setContentIntent(pi).setOngoing(true);
+                  Notification n = b.build();
+                  if (Build.VERSION.SDK_INT >= 29) {
+                      startForeground(1001, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+                  } else {
+                      startForeground(1001, n);
+                  }
+                  if (wl == null) {
+                      PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                      wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "dukaanos:share");
+                      wl.setReferenceCounted(false);
+                      wl.acquire();
+                  }
+                  return START_STICKY;
+              }
+
+              @Override
+              public void onDestroy() {
+                  if (wl != null && wl.isHeld()) {
+                      wl.release();
+                  }
+                  wl = null;
+                  super.onDestroy();
+              }
+          }
+          EOF
+          cat > "$DIR/KeepAlivePlugin.java" <<EOF
+          package $PKG;
+
+          import android.Manifest;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.provider.Settings;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+
+          @CapacitorPlugin(name = "KeepAlive")
+          public class KeepAlivePlugin extends Plugin {
+              @PluginMethod
+              public void start(PluginCall call) {
+                  try {
+                      if (Build.VERSION.SDK_INT >= 33 && getContext().checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                          getActivity().requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
+                      }
+                      Intent i = new Intent(getContext(), KeepAliveService.class);
+                      if (Build.VERSION.SDK_INT >= 26) {
+                          getContext().startForegroundService(i);
+                      } else {
+                          getContext().startService(i);
+                      }
+                      call.resolve();
+                  } catch (Exception e) {
+                      call.reject(String.valueOf(e.getMessage()));
+                  }
+              }
+
+              @PluginMethod
+              public void stop(PluginCall call) {
+                  try {
+                      getContext().stopService(new Intent(getContext(), KeepAliveService.class));
+                      call.resolve();
+                  } catch (Exception e) {
+                      call.reject(String.valueOf(e.getMessage()));
+                  }
+              }
+
+              @PluginMethod
+              public void openBattery(PluginCall call) {
+                  try {
+                      Intent i = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                      i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      getContext().startActivity(i);
+                      call.resolve();
+                  } catch (Exception e) {
+                      call.reject(String.valueOf(e.getMessage()));
+                  }
+              }
+          }
+          EOF
+          cat > "$MA" <<EOF
+          package $PKG;
+
+          import android.os.Bundle;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  registerPlugin(KeepAlivePlugin.class);
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          EOF
+          export MODE=svc
+          python3 - <<'PY'
+          import os
+          p='android/app/src/main/AndroidManifest.xml'
+          s=open(p,encoding='utf-8').read()
+          mode=os.environ['MODE']
+          perms=['android.permission.ACCESS_NETWORK_STATE'] if mode=='net' else ['android.permission.FOREGROUND_SERVICE','android.permission.FOREGROUND_SERVICE_DATA_SYNC','android.permission.POST_NOTIFICATIONS','android.permission.WAKE_LOCK']
+          add=['    <uses-permission android:name="%s" />'%x for x in perms if x not in s]
+          assert '<application' in s and '</application>' in s
+          if add:
+              s=s.replace('<application','\n'.join(add)+'\n    <application',1)
+          if mode=='svc' and 'KeepAliveService' not in s:
+              s=s.replace('</application>','        <service android:name=".KeepAliveService" android:exported="false" android:foregroundServiceType="dataSync" />\n    </application>',1)
+          open(p,'w',encoding='utf-8').write(s)
+          print('Manifest updated for',mode)
+          PY
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          if ./gradlew assembleDebug; then
+            echo "APK built with the background sharing service."
+          else
+            echo "::warning::The background sharing service did not build. Building the APK without it."
+            cd ..
+            cp /tmp/AndroidManifest.pre android/app/src/main/AndroidManifest.xml
+            cp /tmp/MainActivity.pre "$(cat /tmp/ma_path)"
+            rm -f "$(dirname "$(cat /tmp/ma_path)")"/KeepAlive*.java
+            cd android
+            ./gradlew clean assembleDebug
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: dukaan-os-apk
