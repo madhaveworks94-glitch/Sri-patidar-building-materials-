@@ -41,7 +41,7 @@ function loadPeer(){
  const get=()=>window.Peer||(window.peerjs&&window.peerjs.Peer);
  if(get())return Promise.resolve(get());
  const add=src=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.appendChild(s)});
- return add('peerjs.min.js').catch(()=>add('https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js')).then(()=>{if(!get())throw 0;return get()});
+ return add('peerjs.min.js').catch(()=>add('https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js')).catch(()=>add('https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js')).then(()=>{if(!get())throw 0;return get()});
 }
 
 // ---- recording changes ----
@@ -238,6 +238,7 @@ export function syncNow(){
  backoff=3000;clearTimeout(timers.c);ready=false;const c=lconn;lconn=null;try{c&&c.close()}catch(e){}connect();
 }
 export function initSync(){
+ try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
  if(isTest)return;
  setSaveHook(onSave);
  if(meta.mode==='linked'){base=makeBase(db,SCOPES[meta.role]);stale=false}
