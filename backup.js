@@ -1,6 +1,6 @@
 import {db,save,dateFmt,clearAll,isTest,meta,DBKEY} from './store.js';
 import {STATES} from './invoice.js';
-import {addUser,delUser,RESERVED,setOwnerPassword} from './auth.js';
+import {addUser,delUser,RESERVED,setOwnerPassword,who} from './auth.js';
 import {mountShare} from './share.js';
 import {setLang,lang} from './lang.js';
 import {plan,count,run} from './clean.js';
@@ -38,6 +38,7 @@ function render(){
  <p class="mute">Removes old kachha bills, payment entries, trips and stock history. It never removes unpaid udhaar, customer khata accounts, GST invoices or credit notes (the law asks you to keep them for 6 years). Reports for cleaned dates will be smaller, so save your reports first.</p><button class="btn ghost" id="c-now" type="button">Clean now</button></div>`}
  <div class="card" style="margin-top:12px"><h3>Language</h3><div class="seg"><button data-lang="en" class="${lang()==='en'?'on':''}">English</button><button data-lang="hi" class="${lang()==='hi'?'on':''}">हिन्दी</button></div></div>
  <div id="sh-box"></div>
+ <div class="card" style="margin-top:12px"><h3>Logged in</h3><div class="bl-l"><span>You are logged in as <b>${(who()||'').replace(/[<>&"]/g,'')}</b></span><button class="btn ghost" id="lg-out" type="button" style="width:auto;margin:0">Log out</button></div></div>
  ${loginsHTML()}
  ${meta.mode==='linked'?'':`<div class="card" style="margin-top:12px"><h3>Start fresh</h3><p class="mute">Deletes all bills, customers, items and trips on this phone. Back up first.</p><button class="btn ghost" id="b-clr" type="button">Clear all data</button></div>`}
  <div class="bl-msg" id="b-msg" style="${msg.startsWith('Backup')?'color:var(--ok)':''}">${esc(msg)}</div></div>`;
@@ -47,6 +48,7 @@ function render(){
   if(t.id==='b-exp'){try{await exportFile();msg='Backup created.'}catch(err){msg='Backup was not saved.'}render()}
   else if(t.id==='b-clr'){if(t.dataset.a){clearAll();location.hash='#/overview';location.reload()}else{t.dataset.a=1;t.textContent='Tap again to delete everything'}}
   else if(t.id==='u-add'){const n=$('#u-n').value.trim(),p=$('#u-p').value;if(!n||p.length<4){msg='Enter a name and a password of at least 4 characters.';return render()}if(RESERVED.includes(n.toLowerCase())||(db.users||[]).some(u=>u.name.toLowerCase()===n.toLowerCase())){msg='That name is already used.';return render()}await addUser(n,p);msg='Staff login added.';render()}
+  else if(t.id==='lg-out'){try{sessionStorage.removeItem('dk.u')}catch(x){}location.hash='#/overview';location.reload()}
   else if(t.id==='o-chg'){chg=!chg;render()}
   else if(t.id==='o-save'){const p=$('#o-p').value;if(p.length<4){msg='Use a password of at least 4 characters.';return render()}await setOwnerPassword(p);chg=false;msg='Owner password changed.';render()}
   else if(t.id==='t-off'){if(t.dataset.a){db.noTester=true;save();msg='Tester login turned off.';render()}else{t.dataset.a=1;t.textContent='Tap again to turn off'}}
