@@ -22,7 +22,7 @@ function loginsHTML(){
  const canAdd=isTest||meta.mode==='primary';
  const staff=(db.users||[]).map(u=>`<div class="bl-l"><span><b>${esc(u.name)}</b> <small class="mute">Staff, billing, khata and stock only</small></span>${canAdd?`<button class="link" style="margin:0" data-ud="${esc(u.name)}">Remove</button>`:''}</div>`).join('');
  const owner=isTest?'':`<div class="bl-l"><span><b>Sanjaya</b> <small class="mute">Owner, sees everything</small></span><button class="link" style="margin:0" id="o-chg" type="button">Change password</button></div>${chg?'<label>New password (at least 4 characters)</label><input id="o-p" type="password"><button class="btn dark" id="o-save" type="button">Save new password</button>':''}`;
- const tester=!isTest&&!db.noTester&&meta.mode==='primary'?`<div class="bl-l"><span><b>TESTERMAD</b> <small class="mute">Test login. Opens separate practice data and never touches your real shop data.</small></span><button class="link" style="margin:0" id="t-off" type="button">Turn off</button></div>`:'';
+ const tester=!isTest&&!db.noTester&&meta.mode==='primary'?`<div class="bl-l"><span><b>TESTERMAD</b> <small class="mute">Test login. Opens separate practice data and never touches your real shop data.</small></span><button class="link" style="margin:0" id="t-off" type="button">Turn off</button></div>`:(!isTest&&db.noTester&&meta.mode==='primary'?`<div class="bl-l"><span><b>TESTERMAD</b> <small class="mute">Test login is turned off.</small></span><button class="link" style="margin:0" id="t-on" type="button">Turn on</button></div>`:'');
  const add=canAdd?'<label>New staff name</label><input id="u-n" autocomplete="off"><label>Staff password (at least 4 characters)</label><input id="u-p" type="password"><button class="btn dark" id="u-add" type="button">Add staff</button>':'<p class="mute">Staff are added on the owner main phone.</p>';
  return`<div class="card" style="margin-top:12px"><h3>Logins</h3>${owner}${staff}${tester}${add}</div>`;
 }
@@ -51,6 +51,7 @@ function render(){
   else if(t.id==='lg-out'){try{sessionStorage.removeItem('dk.u')}catch(x){}location.hash='#/overview';location.reload()}
   else if(t.id==='o-chg'){chg=!chg;render()}
   else if(t.id==='o-save'){const p=$('#o-p').value;if(p.length<4){msg='Use a password of at least 4 characters.';return render()}await setOwnerPassword(p);chg=false;msg='Owner password changed.';render()}
+  else if(t.id==='t-on'){db.noTester=false;save();msg='Tester login turned on.';render()}
   else if(t.id==='t-off'){if(t.dataset.a){db.noTester=true;save();msg='Tester login turned off.';render()}else{t.dataset.a=1;t.textContent='Tap again to turn off'}}
   else if(t.dataset.ud){if(t.dataset.a){msg=delUser(t.dataset.ud);render()}else{t.dataset.a=1;t.textContent='Tap again to remove'}}
   else if(t.dataset.lang)setLang(t.dataset.lang)
