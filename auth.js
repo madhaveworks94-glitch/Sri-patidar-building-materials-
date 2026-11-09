@@ -43,7 +43,6 @@ async function verify(name,pass){
   if(!await pwOk(PRE.testermad.salt,PRE.testermad.hash,pass))return null;
   if(lr)return{err:"The test login works only on the owner's main phone, not on a staff or second phone."};
   if(isTest)return{name:PRE.testermad.name,role:'owner'};
-  if(db.noTester)return{err:'The test login was turned off by the owner. The owner can turn it on again in Backup, under Logins.'};
   switchMode(true,PRE.testermad.name);return'switching';
  }
  if(lr==='owner')return null;
