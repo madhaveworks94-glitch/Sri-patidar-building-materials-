@@ -8,6 +8,7 @@ const PRE={
 };
 export const RESERVED=Object.keys(PRE);
 export async function hash(salt,pass){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+':'+pass));return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+const pwOk=async(salt,h,p)=>(await hash(salt,p))===h||(p!==p.trim()&&(await hash(salt,p.trim()))===h);
 export const who=()=>user?user.name:null;
 export const role=()=>user?user.role:'owner';
 export const allowed=r=>(role()==='staff'?STAFF:OWNER).includes(r);
@@ -35,13 +36,15 @@ function switchMode(test,name){try{if(test)localStorage.setItem('dk.mode','test'
 async function verify(name,pass){
  const n=name.trim().toLowerCase(),lr=linked();
  if(n==='sanjaya'){
-  if(lr==='staff')return null;const a=ownerAuth();if(await hash(a.salt,pass)!==a.hash)return null;
+  if(lr==='staff')return null;const a=ownerAuth();if(!await pwOk(a.salt,a.hash,pass))return null;
   if(isTest){switchMode(false,PRE.sanjaya.name);return'switching'}return{name:PRE.sanjaya.name,role:'owner'};
  }
  if(n==='testermad'){
-  if(lr||await hash(PRE.testermad.salt,pass)!==PRE.testermad.hash)return null;
+  if(!await pwOk(PRE.testermad.salt,PRE.testermad.hash,pass))return null;
+  if(lr)return{err:"The test login works only on the owner's main phone, not on a staff or second phone."};
   if(isTest)return{name:PRE.testermad.name,role:'owner'};
-  if(db.noTester)return null;switchMode(true,PRE.testermad.name);return'switching';
+  if(db.noTester)return{err:'The test login was turned off by the owner. The owner can turn it on again in Backup, under Logins.'};
+  switchMode(true,PRE.testermad.name);return'switching';
  }
  if(lr==='owner')return null;
  const u=(db.users||[]).find(x=>x.name.toLowerCase()===n);
@@ -64,7 +67,7 @@ function lock(done){
  el.innerHTML='<div class="card" style="width:100%;max-width:360px"><h1 style="margin:0">Dukaan OS</h1><p class="sub">Log in to continue</p><div class="bl" id="l-main"><label>Name</label><input id="l-n" autocomplete="off"><label>Password</label><input id="l-p" type="password"><div class="bl-msg" id="l-m"></div><button class="btn dark" id="l-go" type="button">Log in</button><p class="mute" style="margin-top:12px">Forgot your password? Ask the owner.</p>'+(isTest||meta.mode==='linked'?'':'<button class="link" id="l-j" type="button" style="margin:6px 0 0">This is a staff phone or a second owner phone: join the shop</button>')+'</div><div class="bl" id="l-join" style="display:none"><label>Shop code (shown on the owner phone)</label><input id="j-c" autocomplete="off" autocapitalize="characters"><label>Your name</label><input id="j-n" autocomplete="off"><label>Your password</label><input id="j-p" type="password"><p class="mute" style="margin:8px 0 0">Anything already saved on this phone will be replaced with the shop data.</p><div class="bl-msg" id="j-m"></div><button class="btn dark" id="j-go" type="button">Join the shop</button><button class="link" id="j-b" type="button" style="margin:6px 0 0">Back to log in</button></div></div>';
  document.body.appendChild(el);
  const $=s=>el.querySelector(s),msg=(id,t,ok)=>{const m=$(id);m.style.color=ok?'var(--ok)':'';m.textContent=t};
- const login=async()=>{const u=await verify($('#l-n').value,$('#l-p').value);if(u==='switching')return;if(u){user=u;setSession(u.name);el.remove();done()}else msg('#l-m','Wrong name or password.')};
+ const login=async()=>{const u=await verify($('#l-n').value,$('#l-p').value);if(u==='switching')return;if(u&&u.err){msg('#l-m',u.err);return}if(u){user=u;setSession(u.name);el.remove();done()}else msg('#l-m','Wrong name or password.')};
  $('#l-go').onclick=login;$('#l-p').onkeydown=e=>{if(e.key==='Enter')login()};
  if($('#l-j'))$('#l-j').onclick=()=>{$('#l-main').style.display='none';$('#l-join').style.display=''};
  $('#j-b').onclick=()=>{$('#l-join').style.display='none';$('#l-main').style.display=''};
