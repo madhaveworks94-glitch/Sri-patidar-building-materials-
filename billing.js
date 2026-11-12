@@ -79,7 +79,7 @@ export function mountBilling(r){
 
 function saveBill(){
  const msg=t=>{$('#bl-msg').textContent=t};
- const c1=calc();const items=st.rows.map((x,i)=>({x,i})).filter(({x})=>x.n.trim()&&num(x.q)*num(x.r)>0).map(({x,i})=>{const p=prod(x.n);return{tx:c1.net[i],disc:c1.gl[i]-c1.net[i],d:num(x.d),pid:p?p.id:'',name:x.n.trim(),qty:num(x.q),unit:x.u||(p?p.baseUnit:'pcs'),rate:num(x.r),hsn:p?(p.hsn||''):'',gst:c1.G[i]?num(x.g):0,ng:!c1.G[i]}});
+ const c1=calc();const items=st.rows.map((x,i)=>({x,i})).filter(({x})=>x.n.trim()&&num(x.q)*num(x.r)>0).map(({x,i})=>{const p=prod(x.n);return{tx:c1.net[i],disc:c1.gl[i]-c1.net[i],d:num(x.d),pid:p?p.id:'',name:x.n.trim(),qty:num(x.q),unit:x.u||(p?p.baseUnit:'pcs'),rate:num(x.r),hsn:p?(p.hsn||''):'',cost:p&&p.cost>0?p.cost*per(p,x.u||p.baseUnit):0,gst:c1.G[i]?num(x.g):0,ng:!c1.G[i]}});
  if(!items.length)return msg('Add at least one item with quantity and rate.');
  const c=calc(),name=st.cust.trim();
  const need={};items.forEach(it=>{const p=db.products.find(x=>x.id===it.pid);if(p)need[p.id]=(need[p.id]||0)+it.qty*per(p,it.unit)});
