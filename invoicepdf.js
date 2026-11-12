@@ -9,9 +9,10 @@ export async function savePdf(p){
  if(P&&P.Filesystem&&P.Share){const r=await P.Filesystem.writeFile({path:p.name,data:p.b64,directory:'CACHE'});await P.Share.share({title:p.name,url:r.uri,dialogTitle:'Save or send this invoice'})}
  else p.doc.save(p.name);
 }
-export async function makeInvoicePdf(b0,part){
+// Draws one invoice on the current page of doc and returns the bill part it drew
+function draw(doc,b0,part){
  const pt=parts(b0),b=part==='memo'&&pt.memo?pt.memo:pt.inv;
- const J=await tools(),doc=new J({unit:'mm',format:'a4'}),W=210,H=297,g=b.type==='gst',sup=b.sup||{name:db.shop.name,addr:db.shop.addr,gstin:db.shop.gstin,state:db.shop.stateCode},bal=Math.max(b.total-b.paid,0);
+ const W=210,H=297,g=b.type==='gst',sup=b.sup||{name:db.shop.name,addr:db.shop.addr,gstin:db.shop.gstin,state:db.shop.stateCode},bal=Math.max(b.total-b.paid,0);
  const L=b.items.map(i=>{const tx=i.tx!==undefined?i.tx:i.qty*i.rate,tax=tx*(i.gst||0)/100;return{...i,tx,tax,gr:i.qty*i.rate}});
  const base={theme:'grid',margin:{left:10,right:10},styles:{fontSize:8.5,cellPadding:1.8,lineColor:[70,70,70],lineWidth:.15,textColor:20}};
  let y=14;
@@ -43,5 +44,15 @@ export async function makeInvoicePdf(b0,part){
  doc.setFontSize(8);doc.text(doc.splitTextToSize(g?'Declaration: We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.':'Thank you for your business.',W-20),10,y);
  doc.setFontSize(9);doc.text('Customer signature',10,H-22);doc.text('For '+(sup.name||''),W-10,H-26,{align:'right'});doc.text('Authorised signatory',W-10,H-22,{align:'right'});
  if(b.cancelled){doc.setTextColor(200,0,0);doc.setFont('helvetica','bold');doc.setFontSize(48);doc.text('CANCELLED',W/2,H/2,{align:'center',angle:30})}
+ return b;
+}
+export async function makeInvoicePdf(b0,part){
+ const J=await tools(),doc=new J({unit:'mm',format:'a4'}),b=draw(doc,b0,part);
  return{name:(b.inv||'invoice').replace(/[\/\\]/g,'-')+(b.memoGst?'-kachha-bill':'')+'.pdf',b64:doc.output('datauristring').split('base64,')[1],doc};
+}
+// Many invoices in one PDF, each one starting on a new page. list = [{b,part}]
+export async function makeInvoicesPdf(list,name){
+ const J=await tools(),doc=new J({unit:'mm',format:'a4'});
+ list.forEach((x,i)=>{if(i)doc.addPage();draw(doc,x.b,x.part)});
+ return{name,b64:doc.output('datauristring').split('base64,')[1],doc};
 }
