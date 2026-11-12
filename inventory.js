@@ -1,5 +1,6 @@
 import {db,save,uid,inr,dateFmt} from './store.js';
 import {mountImport} from './pdfimport.js';
+import {role} from './auth.js';
 const num=v=>parseFloat(v)||0,fmt=n=>String(Math.round(n*100)/100);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let root,sel=null,edit=null,q='',flt='all',msg='';
@@ -24,12 +25,12 @@ function list(){
 }
 
 function form(){
- const n=edit==='new',p=n?{name:'',baseUnit:'',units:[],rate:'',gst:18,low:''}:db.products.find(x=>x.id===edit),ex=p.units.filter(u=>u.name!==p.baseUnit);
+ const n=edit==='new',p=n?{name:'',baseUnit:'',units:[],rate:'',cost:'',gst:18,low:''}:db.products.find(x=>x.id===edit),ex=p.units.filter(u=>u.name!==p.baseUnit),own=role()!=='staff';
  const f=(id,l,v,ph,m)=>`<label>${l}</label><input id="${id}" value="${esc(v??'')}" placeholder="${ph||''}" ${m?'inputmode="decimal"':''}>`;
  root.innerHTML=`<div class="bl"><h1>${n?'Add item':'Edit item'}</h1><div class="card">${f('f-n','Item name',p.name,'Cement (PPC)')}${f('f-b','Smallest unit (what you count)',p.baseUnit,'bag, kg, pcs, cft')}
  <label style="margin-top:14px">Bigger units (optional)</label><p class="mute" style="margin:0">Example: 1 ton = 20 bags. Name the unit, then say how many smallest units it holds.</p>
  <div class="bl-3" style="grid-template-columns:1fr 1fr"><input id="f-u1" value="${esc(ex[0]?ex[0].name:'')}" placeholder="Unit, like ton"><input id="f-p1" inputmode="decimal" value="${ex[0]?ex[0].per:''}" placeholder="Holds how many"><input id="f-u2" value="${esc(ex[1]?ex[1].name:'')}" placeholder="Another unit"><input id="f-p2" inputmode="decimal" value="${ex[1]?ex[1].per:''}" placeholder="Holds how many"></div>
- ${f('f-r','Selling rate per smallest unit (₹)',p.rate,'395',1)}<label>Charge GST on this item?</label><select id="f-t"><option value="1" ${p.taxable===false?'':'selected'}>Yes, goes on GST invoice</option><option value="0" ${p.taxable===false?'selected':''}>No, goes on kachha bill</option></select><div id="f-gw" style="${p.taxable===false?'display:none':''}">${f('f-g','GST %',p.gst,'18',1)}${f('f-h','HSN code (for GST invoice)',p.hsn,'2523')}</div>${f('f-l','Low stock alert at (smallest units)',p.low,'50',1)}${n?f('f-s','Opening stock (smallest units)','','0',1):''}
+ ${own?f('f-c','Buying price per smallest unit (₹)',p.cost>0?fmt(p.cost):'','What you pay, to work out profit',1):''}${f('f-r','Selling rate per smallest unit (₹)',p.rate,'395',1)}<label>Charge GST on this item?</label><select id="f-t"><option value="1" ${p.taxable===false?'':'selected'}>Yes, goes on GST invoice</option><option value="0" ${p.taxable===false?'selected':''}>No, goes on kachha bill</option></select><div id="f-gw" style="${p.taxable===false?'display:none':''}">${f('f-g','GST %',p.gst,'18',1)}${f('f-h','HSN code (for GST invoice)',p.hsn,'2523')}</div>${f('f-l','Low stock alert at (smallest units)',p.low,'50',1)}${n?f('f-s','Opening stock (smallest units)','','0',1):''}
  <div class="bl-msg" id="f-m"></div><button class="btn dark" id="f-save" type="button">Save item</button><button class="btn ghost" id="f-x" type="button">Cancel</button></div></div>`;
  root.onchange=e=>{if(e.target.id==='f-t'){const w=$('#f-gw');if(w)w.style.display=e.target.value==='1'?'':'none'}};
  root.onclick=e=>{const t=e.target;
@@ -37,14 +38,14 @@ function form(){
   else if(t.id==='f-save'){const name=$('#f-n').value.trim(),b=$('#f-b').value.trim();if(!name||!b)return $('#f-m').textContent='Enter the item name and its smallest unit.';
    const units=[{name:b,per:1}];[1,2].forEach(i=>{const u=$('#f-u'+i).value.trim(),k=num($('#f-p'+i).value);if(u&&k>0&&!units.some(x=>x.name===u))units.push({name:u,per:k})});
    const tx=$('#f-t').value==='1',d={name,baseUnit:b,units,rate:num($('#f-r').value),gst:tx?num($('#f-g').value):0,taxable:tx,hsn:tx?$('#f-h').value.trim():'',low:num($('#f-l').value)};
-   if(n){const np={id:uid(),stock:num($('#f-s').value),cost:0,...d};db.products.push(np);if(np.stock>0)note(np,np.stock,'in','Opening stock');sel=np.id}else Object.assign(p,d);
+   const cf=$('#f-c');if(n){const np={id:uid(),stock:num($('#f-s').value),cost:cf?num(cf.value):0,...d};db.products.push(np);if(np.stock>0)note(np,np.stock,'in','Opening stock',np.cost);sel=np.id}else{Object.assign(p,d);if(cf)p.cost=num(cf.value)}
    save();edit=null;msg='Saved.';render()}};
 }
 
 function detail(){
  const p=db.products.find(x=>x.id===sel);if(!p){sel=null;return list()}
  const h=log().filter(x=>x.pid===p.id).sort((a,b)=>b.date-a.date).slice(0,8);
- root.innerHTML=`<div class="bl"><button class="link" id="d-back" style="margin:0 0 8px">← All items</button><h1 style="margin:0">${esc(p.name)}</h1><div class="mute">${inr(p.rate)} per ${esc(p.baseUnit)}, ${p.taxable===false?'no GST':'GST '+p.gst+'%'}${p.units.length>1?', '+p.units.filter(u=>u.per>1).map(u=>'1 '+esc(u.name)+' = '+fmt(u.per)+' '+esc(p.baseUnit)).join(', '):''}</div>
+ root.innerHTML=`<div class="bl"><button class="link" id="d-back" style="margin:0 0 8px">← All items</button><h1 style="margin:0">${esc(p.name)}</h1><div class="mute">${inr(p.rate)} per ${esc(p.baseUnit)}, ${p.taxable===false?'no GST':'GST '+p.gst+'%'}${role()!=='staff'&&p.cost>0?', buying '+inr(p.cost)+' (profit '+inr(p.rate-p.cost)+' each)':''}${p.units.length>1?', '+p.units.filter(u=>u.per>1).map(u=>'1 '+esc(u.name)+' = '+fmt(u.per)+' '+esc(p.baseUnit)).join(', '):''}</div>
  <div class="card" style="margin-top:12px"><h3>In stock</h3><div class="num ${low(p)?'bad':''}">${show(p)}</div>${low(p)?'<div class="bad"><b>Low stock, reorder soon.</b></div>':''}
  <div class="btns"><button class="btn dark" id="d-in" type="button">Add stock</button><button class="btn ghost" id="d-adj" type="button">Count / fix</button></div><div id="d-panel"></div><div class="bl-msg" style="color:var(--ok)">${esc(msg)}</div></div>
  <h3 class="mute" style="margin:16px 4px 4px">Recent stock changes</h3><div class="card">${h.map(x=>`<div class="kh-r"><span><b>${x.type==='in'?'Stock added':'Count fixed'}</b><br><small>${dateFmt(x.date)}${x.note?', '+esc(x.note):''}</small></span><b class="${x.qty>=0?'ok':'bad'}">${x.qty>=0?'+':''}${fmt(x.qty)} ${esc(p.baseUnit)}</b></div>`).join('')||'<p class="mute">No changes recorded yet. Sales reduce stock automatically.</p>'}</div>
