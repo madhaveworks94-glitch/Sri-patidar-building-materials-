@@ -8,8 +8,11 @@ import {SCOPES,makeBase,diff,applyOps,filterOps,snapshot} from './syncops.js';
 import {checkJoin,onUsersChanged} from './auth.js';
 import {setKeepAlive} from './keepalive.js';
 
+// One app build belongs to one shop, so every phone looks for the owner phone under this fixed name (nothing to type).
+const SHOP='patidar-bm-4k7q2x9m';
+const hasData=()=>(db.users||[]).length>0||db.bills.length>0||db.products.length>0||db.customers.length>0;
 let base=null,stale=true,peer=null,conns={},state='off',msg='',ready=false,lconn=null,backoff=3000,lastRx=0,starting=false;
-const timers={},listeners=[],fails={};
+const timers={},listeners=[],fails={},allFails=[];
 const CH=48000;
 const rnd=n=>{const a=new Uint8Array(n);crypto.getRandomValues(a);return[...a].map(x=>(x%36).toString(36)).join('')};
 const peerCfg=()=>{try{return JSON.parse(localStorage.getItem('dk.peer')||'null')||{}}catch(e){return{}}};
@@ -18,7 +21,15 @@ const staffUsers=()=>(db.users||[]).map(u=>({...u}));
 const retry=(k,f,ms)=>{clearTimeout(timers[k]);timers[k]=setTimeout(f,ms)};
 const refresh=()=>{try{window.dispatchEvent(new Event('dk-synced'))}catch(e){}};
 export const onStatus=f=>{listeners.push(f)};
-const emit=()=>{for(const f of listeners){try{f()}catch(e){}}};
+const emit=()=>{pill();for(const f of listeners){try{f()}catch(e){}}};
+function pill(){
+ if(meta.mode!=='linked'||isTest)return;
+ let el=document.getElementById('sync-pill');
+ if(!el){const b=document.querySelector('.brand');if(!b)return;el=document.createElement('span');el.id='sync-pill';el.style.cssText='margin-left:8px;font:600 11px Hind,system-ui,sans-serif;padding:3px 8px;border-radius:999px;white-space:nowrap';b.appendChild(el)}
+ const n=(meta.queue||[]).length,on=state==='online';
+ el.textContent=on?(n?'Sending '+n+'…':'Online'):(n?'Offline · '+n+' saved':'Offline');
+ el.style.background=on?'#e3f4e8':'#fdf0dc';el.style.color=on?'#1d6b3a':'#8a5a00';
+}
 function setState(s,m){state=s;msg=m||'';emit()}
 
 // ---- messages: JSON text, split into pieces when large ----
@@ -47,6 +58,7 @@ function loadPeer(){
 // ---- recording changes ----
 function onSave(){
  const lk=meta.mode==='linked';
+ if(!lk&&!peer&&!starting&&hasData())startPrimary();
  if(!lk&&!Object.keys(conns).length){stale=true;return}
  if(!base||stale){base=makeBase(db,myScope());stale=false;return}
  const ops=diff(db,base,myScope());if(!ops.length)return;
@@ -64,12 +76,13 @@ const ensureBase=()=>{if(!base||stale){base=makeBase(db,SCOPES.owner);stale=fals
 
 // ---- the owner's main phone ----
 async function startPrimary(){
- if(isTest||meta.mode!=='primary'||!meta.shareOn||starting)return;
+ if(isTest||meta.mode!=='primary'||starting)return;
  if(!meta.shopId){meta.shopId=rnd(8);saveMeta()}
+ if(!hasData()){setState('off','Sharing starts by itself as soon as you add a staff login.');return}
  starting=true;setState('connecting');
  let Peer;try{Peer=await loadPeer()}catch(e){starting=false;setState('error','The sharing tool could not load. Check the internet.');retry('p',startPrimary,15000);return}
  try{if(peer)peer.destroy()}catch(e){}
- const p=peer=new Peer('dkos-'+meta.shopId,peerCfg());
+ const p=peer=new Peer('dkos-'+SHOP,peerCfg());
  p.on('open',()=>{if(peer!==p)return;starting=false;setState('online');setKeepAlive(!!meta.keep)});
  p.on('connection',onConn);
  p.on('disconnected',()=>{if(peer!==p||p.destroyed)return;setState('connecting');retry('pd',()=>{try{if(peer===p&&!p.destroyed)p.reconnect()}catch(e){}},3000)});
@@ -106,10 +119,13 @@ async function handle(conn,m){
  }
 }
 async function doJoin(conn,m){
- const key=String(m.name||'').trim().toLowerCase(),f=fails[key]||{n:0,until:0};
- if(Date.now()<f.until){send(conn,{t:'fail',msg:'Too many wrong tries. Wait 5 minutes and try again.'});return}
+ const key=String(m.name||'').trim().toLowerCase(),f=fails[key]||{n:0,until:0},now=Date.now();
+ while(allFails.length&&now-allFails[0]>6e5)allFails.shift();
+ if(now<f.until||allFails.length>=20){send(conn,{t:'fail',msg:'Too many wrong tries. Wait 5 minutes and try again.'});return}
  const who=await checkJoin(m.name,m.pass);
- if(!who){f.n++;if(f.n>=5){f.until=Date.now()+3e5;f.n=0}fails[key]=f;send(conn,{t:'fail',msg:'Wrong name or password.'});return}
+ const code=String(m.code||'').replace(/[^a-z0-9]/gi,'').toLowerCase();
+ const badCode=!!who&&who.role==='owner'&&(!meta.shopId||code!==meta.shopId);
+ if(!who||badCode){f.n++;allFails.push(now);if(f.n>=5){f.until=now+3e5;f.n=0}fails[key]=f;send(conn,{t:'fail',msg:badCode?'For a second owner phone, also enter the owner code. It is on the Backup page of the main phone.':'Wrong name or password.'});return}
  fails[key]={n:0,until:0};
  if(meta.nextL>=26){send(conn,{t:'fail',msg:'Too many phones have been added to this shop. Remove the ones you do not use and contact support.'});return}
  ensureBase();
@@ -119,8 +135,10 @@ async function doJoin(conn,m){
  send(conn,{t:'joined',dev,key:k,letter,role:who.role,user:who.name,snap:buildSnap(who.role)});emit();
 }
 async function doHello(conn,m){
- const d=meta.devs[m.dev];
- if(!d||d.key!==m.key||!validDev(d)){send(conn,{t:'revoked'});setTimeout(()=>{try{conn.close()}catch(e){}},500);return}
+ const d=meta.devs[m.dev],bye=t=>{send(conn,{t});setTimeout(()=>{try{conn.close()}catch(e){}},500)};
+ if(!d){bye((meta.gone||{})[m.dev]?'revoked':'unknown');return}
+ if(d.key!==m.key){bye('unknown');return}
+ if(!validDev(d)){bye('revoked');return}
  const old=conns[m.dev];if(old&&old!==conn){delete conns[m.dev];try{old.close()}catch(e){}}
  conn.dk={dev:m.dev};conns[m.dev]=conn;ensureBase();
  const q=Array.isArray(m.queue)?m.queue.slice().sort((a,b)=>a.n-b.n):[];
@@ -129,12 +147,13 @@ async function doHello(conn,m){
  send(conn,{t:'snap',ack:d.ack,snap:buildSnap(d.role)});emit();
 }
 export function removeDevice(id){
- const c=conns[id];delete meta.devs[id];delete conns[id];saveMeta();
+ const c=conns[id];delete meta.devs[id];delete conns[id];(meta.gone=meta.gone||{})[id]=1;saveMeta();
  if(c){send(c,{t:'revoked'});setTimeout(()=>{try{c.close()}catch(e){}},500)}
  emit();
 }
 onUsersChanged((name,kind)=>{
  if(meta.mode!=='primary')return;
+ if(kind==='add')startPrimary();
  if(kind==='del')for(const id of Object.keys(meta.devs))if(meta.devs[id].role==='staff'&&meta.devs[id].user===name)removeDevice(id);
  for(const id in conns)send(conns[id],{t:'users',users:staffUsers()});
 });
@@ -161,7 +180,7 @@ function connect(){
  if(!peer||peer.destroyed)return startLinked();
  if(peer.disconnected){try{peer.reconnect()}catch(e){}retry('c',connect,3000);return}
  setState('connecting');
- const c=lconn=peer.connect('dkos-'+meta.shopId,{serialization:'json',reliable:true});
+ const c=lconn=peer.connect('dkos-'+SHOP,{serialization:'json',reliable:true});
  const to=setTimeout(()=>{if(lconn===c&&!c.open)down('The owner phone is not reachable.')},15000);
  c.on('open',()=>{clearTimeout(to);lastRx=Date.now();send(c,{t:'hello',dev:meta.devId,key:meta.devKey,queue:meta.queue})});
  c.on('data',raw=>{lastRx=Date.now();const m=recv(c,raw);if(m)lmsg(m)});
@@ -170,7 +189,7 @@ function connect(){
 }
 function down(m,hard){
  ready=false;const c=lconn;lconn=null;try{c&&c.close()}catch(e){}
- setState('offline',m||'');retry('c',()=>hard?startLinked():connect(),backoff);backoff=Math.min(Math.round(backoff*1.6),60000);
+ setState('offline',m||'');retry('c',()=>hard?startLinked():connect(),backoff);backoff=Math.min(Math.round(backoff*1.5),6000);
 }
 const trim=n=>{meta.queue=(meta.queue||[]).filter(b=>b.n>n);saveMeta()};
 function lmsg(m){
@@ -186,23 +205,25 @@ function lmsg(m){
   applyOps(db,filterOps(m.ops||[],sc,'out'),base);persist();meta.last=Date.now();saveMeta();emit();refresh();
  }else if(m.t==='ack')trim(m.n);
  else if(m.t==='users'){db.users=m.users||[];persist()}
- else if(m.t==='revoked'){
+ else if(m.t==='unknown'){
+  ready=false;const c=lconn;lconn=null;try{c&&c.close()}catch(e){}
+  setState('unknown',"The owner's phone does not know this phone any more. Your work is still saved here. Ask the owner, or reset this phone and log in again.");retry('c',connect,60000);
+ }else if(m.t==='revoked'){
   resetDevice();try{alert('This phone was removed from the shop. The shop data on it has been cleared.')}catch(e){}location.reload();
  }
 }
 // Called from the login screen on a new phone
-export async function joinShop(code,name,pass){
- const id=String(code).replace(/[^a-z0-9]/gi,'').toLowerCase();
- if(id.length<6)return{err:'Enter the shop code shown on the owner phone.'};
+export async function joinShop(name,pass,code){
+ const id=SHOP;
  let Peer;try{Peer=await loadPeer()}catch(e){return{err:'The sharing tool could not load. Check your internet and try again.'}}
  return new Promise(res=>{
   const p=new Peer(peerCfg());let over=false;
   const done=r=>{if(over)return;over=true;clearTimeout(to);try{p.destroy()}catch(e){}res(r)};
   const to=setTimeout(()=>done({err:'Could not reach the owner phone. It must be on, with the app open and internet.'}),30000);
-  p.on('error',e=>done({err:e&&e.type==='peer-unavailable'?'Owner phone not found. Check the code, and that the owner app is open.':'Connection problem ('+(e&&e.type||'unknown')+'). Check your internet.'}));
+  p.on('error',e=>done({err:e&&e.type==='peer-unavailable'?'The owner phone is not reachable. It must be switched on, with the app open and internet.':'Connection problem ('+(e&&e.type||'unknown')+'). Check your internet.'}));
   p.on('open',()=>{
    const c=p.connect('dkos-'+id,{serialization:'json',reliable:true});
-   c.on('open',()=>send(c,{t:'join',name,pass}));
+   c.on('open',()=>send(c,{t:'join',name,pass,code:code||''}));
    c.on('data',raw=>{
     const m=recv(c,raw);if(!m)return;
     if(m.t==='fail')done({err:m.msg});
@@ -213,7 +234,7 @@ export async function joinShop(code,name,pass){
  });
 }
 function adopt(m,shopId){
- Object.assign(meta,{mode:'linked',shopId,devId:m.dev,devKey:m.key,letter:m.letter,role:m.role,user:m.user,queue:[],nseq:0,seq:{},shareOn:false,devs:{},last:Date.now()});saveMeta();
+ Object.assign(meta,{mode:'linked',shopId,gone:{},devId:m.dev,devKey:m.key,letter:m.letter,role:m.role,user:m.user,queue:[],nseq:0,seq:{},shareOn:false,devs:{},last:Date.now()});saveMeta();
  const sc=SCOPES[m.role];
  for(const k of Object.keys(db))delete db[k];
  Object.assign(db,{v:1,shop:{name:'',gstin:'',owner:''},products:[],customers:[],bills:[],ledger:[],vehicles:[],trips:[],seq:{bill:1}});
@@ -223,16 +244,11 @@ function adopt(m,shopId){
 // ---- controls used by the Backup screen ----
 export function getStatus(){
  const f=s=>s?(s.slice(0,4)+'-'+s.slice(4)).toUpperCase():'';
- return{mode:meta.mode,role:meta.role,user:meta.user,state,msg,shareOn:!!meta.shareOn,code:f(meta.shopId),keep:!!meta.keep,pending:(meta.queue||[]).length,last:meta.last||0,letter:meta.letter||'',
+ return{mode:meta.mode,role:meta.role,user:meta.user,state,msg,code:f(meta.shopId),keep:!!meta.keep,pending:(meta.queue||[]).length,last:meta.last||0,letter:meta.letter||'',
   devices:Object.entries(meta.devs||{}).map(([id,d])=>({id,user:d.user,role:d.role,letter:d.letter,online:!!(conns[id]&&conns[id].open),seen:d.seen}))};
 }
-export function startSharing(){if(meta.mode!=='primary')return;meta.shareOn=true;saveMeta();startPrimary();emit()}
-export function stopSharing(){
- meta.shareOn=false;saveMeta();clearTimeout(timers.p);
- for(const id in conns){try{conns[id].close()}catch(e){}}conns={};
- try{if(peer)peer.destroy()}catch(e){}peer=null;starting=false;setKeepAlive(false);setState('off');
-}
-export function setKeep(on){meta.keep=!!on;saveMeta();if(meta.mode==='primary'&&meta.shareOn)setKeepAlive(!!on);emit()}
+export function resetThisPhone(){resetDevice();location.reload()}
+export function setKeep(on){meta.keep=!!on;saveMeta();if(meta.mode==='primary'&&state==='online')setKeepAlive(!!on);emit()}
 export function syncNow(){
  if(meta.mode!=='linked')return;
  backoff=3000;clearTimeout(timers.c);ready=false;const c=lconn;lconn=null;try{c&&c.close()}catch(e){}connect();
@@ -244,13 +260,13 @@ export function initSync(){
  if(meta.mode==='linked'){base=makeBase(db,SCOPES[meta.role]);stale=false}
  if(meta.mode==='primary')startPrimary();else startLinked();
  const wake=()=>{
-  if(meta.mode==='primary'){if(meta.shareOn&&(!peer||peer.destroyed||peer.disconnected))startPrimary()}
+  if(meta.mode==='primary'){if(!peer||peer.destroyed||peer.disconnected)startPrimary()}
   else if(!(lconn&&lconn.open)){backoff=3000;clearTimeout(timers.c);connect()}
  };
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)wake()});
  addEventListener('online',wake);
  setInterval(()=>{
-  if(meta.mode==='primary'){if(meta.shareOn&&(!peer||peer.destroyed||peer.disconnected)&&!starting)startPrimary();return}
+  if(meta.mode==='primary'){if((!peer||peer.destroyed||peer.disconnected)&&!starting)startPrimary();return}
   if(lconn&&lconn.open){if(Date.now()-lastRx>55000)down('Connection lost.');else send(lconn,{t:'ping'})}
  },20000);
 }
