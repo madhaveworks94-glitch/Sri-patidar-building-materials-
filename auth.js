@@ -14,6 +14,8 @@ export const role=()=>user?user.role:'owner';
 export const allowed=r=>(role()==='staff'?STAFF:OWNER).includes(r);
 export const onUsersChanged=f=>{usersHook=f};
 const linked=()=>meta.mode==='linked'?meta.role:'';
+// A phone that has never been used: a staff member logging in here fetches the shop from the owner phone by themselves
+const newPhone=()=>!isTest&&meta.mode==='primary'&&!(db.users||[]).length&&!db.bills.length&&!db.products.length&&!db.customers.length;
 const ownerAuth=()=>(isTest?realField('ownerAuth'):db.ownerAuth)||PRE.sanjaya;
 export async function setOwnerPassword(p){const salt=Math.random().toString(36).slice(2)+Date.now().toString(36);db.ownerAuth={salt,hash:await hash(salt,p)};save()}
 export async function addUser(name,pass){
@@ -63,17 +65,28 @@ export function gate(done){
 function lock(done){
  let el=document.getElementById('lock');if(el)return;
  el=document.createElement('div');el.id='lock';el.style.cssText='position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:20px;overflow:auto';
- el.innerHTML='<div class="card" style="width:100%;max-width:360px"><h1 style="margin:0">Dukaan OS</h1><p class="sub">Log in to continue</p><div class="bl" id="l-main"><label>Name</label><input id="l-n" autocomplete="off"><label>Password</label><input id="l-p" type="password"><div class="bl-msg" id="l-m"></div><button class="btn dark" id="l-go" type="button">Log in</button><p class="mute" style="margin-top:12px">Forgot your password? Ask the owner.</p>'+(isTest||meta.mode==='linked'?'':'<button class="link" id="l-j" type="button" style="margin:6px 0 0">This is a staff phone or a second owner phone: join the shop</button>')+'</div><div class="bl" id="l-join" style="display:none"><label>Shop code (shown on the owner phone)</label><input id="j-c" autocomplete="off" autocapitalize="characters"><label>Your name</label><input id="j-n" autocomplete="off"><label>Your password</label><input id="j-p" type="password"><p class="mute" style="margin:8px 0 0">Anything already saved on this phone will be replaced with the shop data.</p><div class="bl-msg" id="j-m"></div><button class="btn dark" id="j-go" type="button">Join the shop</button><button class="link" id="j-b" type="button" style="margin:6px 0 0">Back to log in</button></div></div>';
+ el.innerHTML='<div class="card" style="width:100%;max-width:360px"><h1 style="margin:0">Dukaan OS</h1><p class="sub">Log in to continue</p><div class="bl" id="l-main"><label>Name</label><input id="l-n" autocomplete="off"><label>Password</label><input id="l-p" type="password"><div class="bl-msg" id="l-m"></div><button class="btn dark" id="l-go" type="button">Log in</button><p class="mute" style="margin-top:12px">Forgot your password? Ask the owner.</p>'+(isTest||meta.mode==='linked'?'':'<button class="link" id="l-j" type="button" style="margin:6px 0 0">Second owner phone? Join the shop</button>')+'</div><div class="bl" id="l-join" style="display:none"><label>Name</label><input id="j-n" autocomplete="off" placeholder="Sanjaya"><label>Password</label><input id="j-p" type="password"><label>Owner code (from Backup on the main phone)</label><input id="j-c" autocomplete="off" autocapitalize="characters"><p class="mute" style="margin:8px 0 0">Anything already saved on this phone will be replaced with the shop data. Staff do not need this: they just log in with their name and password.</p><div class="bl-msg" id="j-m"></div><button class="btn dark" id="j-go" type="button">Join the shop</button><button class="link" id="j-b" type="button" style="margin:6px 0 0">Back to log in</button></div></div>';
  document.body.appendChild(el);
  const $=s=>el.querySelector(s),msg=(id,t,ok)=>{const m=$(id);m.style.color=ok?'var(--ok)':'';m.textContent=t};
- const login=async()=>{const u=await verify($('#l-n').value,$('#l-p').value);if(u==='switching')return;if(u&&u.err){msg('#l-m',u.err);return}if(u){user=u;setSession(u.name);el.remove();done()}else msg('#l-m','Wrong name or password.')};
+ const login=async()=>{
+  const n=$('#l-n').value.trim(),p=$('#l-p').value;if(!n||!p)return msg('#l-m','Enter your name and password.');
+  const u=await verify(n,p);if(u==='switching')return;if(u&&u.err){msg('#l-m',u.err);return}
+  if(u){user=u;setSession(u.name);el.remove();done();return}
+  const k=n.toLowerCase();
+  if(newPhone()&&k!=='sanjaya'&&k!=='testermad'){
+   msg('#l-m','Checking with the owner phone…',true);$('#l-go').disabled=true;
+   try{const s=await import('./sync.js'),r=await s.joinShop(n,p,'');if(r.ok){setSession(n);location.reload();return}msg('#l-m',r.err||'Wrong name or password.')}catch(e){msg('#l-m','Could not reach the owner phone. Check your internet.')}
+   $('#l-go').disabled=false;return;
+  }
+  msg('#l-m','Wrong name or password.');
+ };
  $('#l-go').onclick=login;$('#l-p').onkeydown=e=>{if(e.key==='Enter')login()};
  if($('#l-j'))$('#l-j').onclick=()=>{$('#l-main').style.display='none';$('#l-join').style.display=''};
  $('#j-b').onclick=()=>{$('#l-join').style.display='none';$('#l-main').style.display=''};
  $('#j-go').onclick=async()=>{
-  const c=$('#j-c').value,n=$('#j-n').value.trim(),p=$('#j-p').value;if(!c.trim()||!n||!p)return msg('#j-m','Enter the shop code, your name and your password.');
+  const c=$('#j-c').value,n=$('#j-n').value.trim(),p=$('#j-p').value;if(!n||!p)return msg('#j-m','Enter your name and your password.');
   msg('#j-m','Connecting to the owner phone…',true);$('#j-go').disabled=true;
-  try{const s=await import('./sync.js'),r=await s.joinShop(c,n,p);if(r.ok){setSession(n);location.reload();return}msg('#j-m',r.err||'Could not join.')}catch(e){msg('#j-m','Could not join. Check your internet and try again.')}
+  try{const s=await import('./sync.js'),r=await s.joinShop(n,p,c);if(r.ok){setSession(n);location.reload();return}msg('#j-m',r.err||'Could not join.')}catch(e){msg('#j-m','Could not join. Check your internet and try again.')}
   $('#j-go').disabled=false;
  };
 }
