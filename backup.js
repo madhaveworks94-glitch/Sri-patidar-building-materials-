@@ -21,9 +21,9 @@ async function exportFile(){
 function loginsHTML(){
  const canAdd=isTest||meta.mode==='primary';
  const staff=(db.users||[]).map(u=>`<div class="bl-l"><span><b>${esc(u.name)}</b> <small class="mute">Staff, billing, khata and stock only</small></span>${canAdd?`<button class="link" style="margin:0" data-ud="${esc(u.name)}">Remove</button>`:''}</div>`).join('');
- const owner=isTest?'':`<div class="bl-l"><span><b>Sanjaya</b> <small class="mute">Owner, sees everything</small></span><button class="link" style="margin:0" id="o-chg" type="button">Change password</button></div>${chg?'<label>New password (at least 4 characters)</label><input id="o-p" type="password"><button class="btn dark" id="o-save" type="button">Save new password</button>':''}`;
+ const owner=isTest?'':`<div class="bl-l"><span><b>Sanjaya</b> <small class="mute">Owner, sees everything</small></span><button class="link" style="margin:0" id="o-chg" type="button">Change password</button></div>${chg?'<label>New password (at least 6 characters)</label><input id="o-p" type="password"><button class="btn dark" id="o-save" type="button">Save new password</button>':''}`;
  const tester=isTest?'':`<div class="bl-l"><span><b>TESTERMAD</b> <small class="mute">Test login, always available. Opens separate practice data and never touches your real shop data.</small></span></div>`;
- const add=canAdd?'<label>New staff name</label><input id="u-n" autocomplete="off"><label>Staff password (at least 4 characters)</label><input id="u-p" type="password"><button class="btn dark" id="u-add" type="button">Add staff</button>':'<p class="mute">Staff are added on the owner main phone.</p>';
+ const add=canAdd?'<label>New staff name</label><input id="u-n" autocomplete="off"><label>Staff password (at least 6 characters)</label><input id="u-p" type="password"><button class="btn dark" id="u-add" type="button">Add staff</button>':'<p class="mute">Staff are added on the owner main phone.</p>';
  return`<div class="card" style="margin-top:12px"><h3>Logins</h3>${owner}${staff}${tester}${add}</div>`;
 }
 const f=(id,l,v,ph)=>`<label>${l}</label><input id="${id}" value="${esc(v||'')}" placeholder="${ph||''}">`;
@@ -47,10 +47,10 @@ function render(){
  root.onclick=async e=>{const t=e.target;
   if(t.id==='b-exp'){try{await exportFile();msg='Backup created.'}catch(err){msg='Backup was not saved.'}render()}
   else if(t.id==='b-clr'){if(t.dataset.a){clearAll();location.hash='#/overview';location.reload()}else{t.dataset.a=1;t.textContent='Tap again to delete everything'}}
-  else if(t.id==='u-add'){const n=$('#u-n').value.trim(),p=$('#u-p').value;if(!n||p.length<4){msg='Enter a name and a password of at least 4 characters.';return render()}if(RESERVED.includes(n.toLowerCase())||(db.users||[]).some(u=>u.name.toLowerCase()===n.toLowerCase())){msg='That name is already used.';return render()}await addUser(n,p);msg='Staff login added.';render()}
+  else if(t.id==='u-add'){const n=$('#u-n').value.trim(),p=$('#u-p').value;if(!n||p.length<6){msg='Enter a name and a password of at least 6 characters.';return render()}if(RESERVED.includes(n.toLowerCase())||(db.users||[]).some(u=>u.name.toLowerCase()===n.toLowerCase())){msg='That name is already used.';return render()}await addUser(n,p);msg='Staff login added.';render()}
   else if(t.id==='lg-out'){try{sessionStorage.removeItem('dk.u')}catch(x){}location.hash='#/overview';location.reload()}
   else if(t.id==='o-chg'){chg=!chg;render()}
-  else if(t.id==='o-save'){const p=$('#o-p').value;if(p.length<4){msg='Use a password of at least 4 characters.';return render()}await setOwnerPassword(p);chg=false;msg='Owner password changed.';render()}
+  else if(t.id==='o-save'){const p=$('#o-p').value;if(p.length<6){msg='Use a password of at least 6 characters.';return render()}await setOwnerPassword(p);chg=false;msg='Owner password changed.';render()}
   else if(t.dataset.ud){if(t.dataset.a){msg=delUser(t.dataset.ud);render()}else{t.dataset.a=1;t.textContent='Tap again to remove'}}
   else if(t.dataset.lang)setLang(t.dataset.lang)
   else if(t.id==='c-now'){const m=db.cleanMonths||0;if(!m){msg='Choose 3, 6 or 12 months first.';return render()}const n=count(plan(m));if(!n){msg='Nothing is old enough to clean.';return render()}if(t.dataset.a){msg='Cleaned '+run(m)+' old records.';render()}else{t.dataset.a=1;t.textContent='Remove '+n+' old records? Tap again'}}
