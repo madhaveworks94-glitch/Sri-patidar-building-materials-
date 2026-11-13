@@ -1,4 +1,4 @@
-const C='dukaan-os-v27';
+const C='dukaan-os-v28';
 const FILES=['./','./index.html','./styles.css','./app.js','./store.js','./billing.js','./khata.js','./inventory.js','./pdfimport.js','./fleet.js','./reports.js','./backup.js','./invoice.js','./gstreport.js','./gstpdf.js','./bills.js','./creditnote.js','./auth.js','./lang.js','./clean.js','./spend.js','./docs.js','./ledgerpdf.js','./invoicepdf.js','./wheel.js','./profit.js','./syncops.js','./sync.js','./share.js','./keepalive.js','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(FILES)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))));self.clients.claim()});
