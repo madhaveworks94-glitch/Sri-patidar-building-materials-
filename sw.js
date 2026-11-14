@@ -1,5 +1,5 @@
 // Offline cache. Bump the version number whenever any web file changes.
-const V='pa-v2';
+const V='pa-v3';
 const FILES=['./','index.html','styles.css','app.js','util.js','store.js','calc.js','settings.js','sales.js','ledgerpdf.js','pdftools.js','analysis.js','invoices.js','invcalc.js','invdoc.js','stock.js','purchases.js','pdfimport.js','manifest.webmanifest','icon-192.png','icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>Promise.all(FILES.map(f=>c.add(f).catch(()=>{})))).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==V).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
